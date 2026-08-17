@@ -1,0 +1,23 @@
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  letter-spacing: -0.02em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--mantine-color-accent-5);
+  outline-offset: 2px;
+}
