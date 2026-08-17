@@ -1,0 +1,21 @@
+# Root
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Node / Next
+apps/web/node_modules/
+apps/web/.next/
+apps/web/out/
+apps/web/coverage/
+apps/web/*.tsbuildinfo
+
+# Local scripts / dumps
+apps/web/scripts/tmp-*.js
+*.sql.bak
