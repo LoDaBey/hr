@@ -113,7 +113,7 @@ async function tryAutoInvite(
     const message = error instanceof Error ? error.message : 'Auto-invite failed';
     console.error('auto-invite failed', error);
     await client.query(
-      `INSERT INTO workflow_errors (
+      `INSERT INTO HRSYSTEM_workflow_errors (
          action, node, error_message, application_id, candidate_id, input_ref
        ) VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
       [
@@ -185,18 +185,18 @@ export async function POST(
         title: string;
       }>(
         client,
-        `UPDATE applications a
-         SET stage = $2::app_stage,
-             status = CASE WHEN $3 = 'REJECT' THEN 'REJECTED'::app_status
-                           WHEN $3 = 'HOLD' THEN 'ON_HOLD'::app_status
-                           WHEN $3 = 'WITHDRAW' THEN 'WITHDRAWN'::app_status
-                           ELSE 'ACTIVE'::app_status END,
+        `UPDATE HRSYSTEM_applications a
+         SET stage = $2::HRSYSTEM_app_stage,
+             status = CASE WHEN $3 = 'REJECT' THEN 'REJECTED'::HRSYSTEM_app_status
+                           WHEN $3 = 'HOLD' THEN 'ON_HOLD'::HRSYSTEM_app_status
+                           WHEN $3 = 'WITHDRAW' THEN 'WITHDRAWN'::HRSYSTEM_app_status
+                           ELSE 'ACTIVE'::HRSYSTEM_app_status END,
              reject_reason = CASE WHEN $3 = 'REJECT' THEN $4 ELSE reject_reason END,
              hold_reason = CASE WHEN $3 = 'HOLD' THEN $4 ELSE hold_reason END,
              updated_at = now()
-         FROM candidates c, jobs j
+         FROM HRSYSTEM_candidates c, HRSYSTEM_jobs j
          WHERE a.id = $1
-           AND a.stage = $5::app_stage
+           AND a.stage = $5::HRSYSTEM_app_stage
            AND c.id = a.candidate_id
            AND j.id = a.job_id
          RETURNING a.id, a.stage, a.status, a.candidate_id, a.job_id,
@@ -210,13 +210,13 @@ export async function POST(
 
       if (expectedStage === 'INITIAL_SCREENING_REVIEW') {
         await client.query(
-          `UPDATE screening_results SET
+          `UPDATE HRSYSTEM_screening_results SET
              hr_decision = $2,
              hr_override_reason = $3,
              hr_user_id = $4,
              hr_decided_at = now()
            WHERE id = (
-             SELECT id FROM screening_results
+             SELECT id FROM HRSYSTEM_screening_results
              WHERE application_id = $1
              ORDER BY created_at DESC
              LIMIT 1
@@ -227,13 +227,13 @@ export async function POST(
 
       if (expectedStage === 'TECH_ASSESSMENT_REVIEW') {
         await client.query(
-          `UPDATE candidate_assessments SET
+          `UPDATE HRSYSTEM_candidate_assessments SET
              hr_decision = $2,
              hr_user_id = $3,
              hr_decided_at = now(),
              updated_at = now()
            WHERE id = (
-             SELECT id FROM candidate_assessments
+             SELECT id FROM HRSYSTEM_candidate_assessments
              WHERE application_id = $1 AND kind = 'ASSESSMENT' AND status <> 'CANCELLED'
              ORDER BY created_at DESC
              LIMIT 1
@@ -244,13 +244,13 @@ export async function POST(
 
       if (expectedStage === 'RECORDED_TECH_REVIEW') {
         await client.query(
-          `UPDATE candidate_assessments SET
+          `UPDATE HRSYSTEM_candidate_assessments SET
              hr_decision = $2,
              hr_user_id = $3,
              hr_decided_at = now(),
              updated_at = now()
            WHERE id = (
-             SELECT id FROM candidate_assessments
+             SELECT id FROM HRSYSTEM_candidate_assessments
              WHERE application_id = $1 AND kind = 'TECH_TEST' AND status <> 'CANCELLED'
              ORDER BY created_at DESC
              LIMIT 1
@@ -261,12 +261,12 @@ export async function POST(
         // Audit the intermediate shortlist stage when we jumped to FINAL_INTERVIEW_PENDING.
         if (decision === 'SHORTLIST') {
           await client.query(
-            `INSERT INTO recruitment_events (
+            `INSERT INTO HRSYSTEM_recruitment_events (
                application_id, candidate_id, job_id, event_type,
                from_stage, to_stage, actor_type, actor_id, actor_label, payload
              ) VALUES (
                $1, $2, $3, 'HR_DECISION',
-               $4::app_stage, 'RECORDED_TECH_SHORTLISTED'::app_stage,
+               $4::HRSYSTEM_app_stage, 'RECORDED_TECH_SHORTLISTED'::HRSYSTEM_app_stage,
                'HR', $5, $6, $7::jsonb
              )`,
             [
@@ -283,10 +283,10 @@ export async function POST(
       }
 
       await client.query(
-        `INSERT INTO recruitment_events (
+        `INSERT INTO HRSYSTEM_recruitment_events (
            application_id, candidate_id, job_id, event_type,
            from_stage, to_stage, actor_type, actor_id, actor_label, payload
-         ) VALUES ($1, $2, $3, 'HR_DECISION', $4::app_stage, $5::app_stage, 'HR', $6, $7, $8::jsonb)`,
+         ) VALUES ($1, $2, $3, 'HR_DECISION', $4::HRSYSTEM_app_stage, $5::HRSYSTEM_app_stage, 'HR', $6, $7, $8::jsonb)`,
         [
           applicationId,
           row.candidate_id,
@@ -321,7 +321,7 @@ export async function POST(
           // Stage may have moved to TECH_ASSESSMENT_SENT inside the savepoint.
           const refreshed = await oneTx<{ stage: Stage; status: Status }>(
             client,
-            `SELECT stage, status FROM applications WHERE id = $1`,
+            `SELECT stage, status FROM HRSYSTEM_applications WHERE id = $1`,
             [applicationId],
           );
           if (refreshed) {
@@ -345,7 +345,7 @@ export async function POST(
           });
           const refreshed = await oneTx<{ stage: Stage; status: Status }>(
             client,
-            `SELECT stage, status FROM applications WHERE id = $1`,
+            `SELECT stage, status FROM HRSYSTEM_applications WHERE id = $1`,
             [applicationId],
           );
           if (refreshed) {

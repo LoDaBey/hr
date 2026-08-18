@@ -11,7 +11,7 @@ export async function insertWorkflowError(input: {
   input_ref?: unknown;
 }): Promise<WorkflowError | null> {
   return one<WorkflowError>(
-    `INSERT INTO workflow_errors (
+    `INSERT INTO HRSYSTEM_workflow_errors (
        action, node, error_message, application_id, candidate_id, input_ref
      )
      VALUES ($1, $2, $3, $4, $5, $6::jsonb)
@@ -42,7 +42,7 @@ export async function listWorkflowErrors(opts: {
 > {
   return query(
     `SELECT id, action, node, error_message, created_at, resolved
-     FROM workflow_errors
+     FROM HRSYSTEM_workflow_errors
      WHERE resolved = $1
      ORDER BY created_at DESC
      LIMIT $2`,

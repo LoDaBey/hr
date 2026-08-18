@@ -16,7 +16,7 @@ import { DateInput } from '@mantine/dates';
 import type { UseFormReturnType } from '@mantine/form';
 import { useState } from 'react';
 import { CheckboxReveal } from '@/components/hr/job-editor/CheckboxReveal';
-import { EMPLOYMENT_TYPE, WORK_MODE, selectOptions } from '@/lib/labels';
+import { EMPLOYMENT_TYPE, JOB_CURRENCY, JOB_DEPARTMENT, WORK_MODE, selectOptions, withCurrentSelectOption } from '@/lib/labels';
 import type {
   BasicsSectionParts,
   DemographicRuleState,
@@ -62,13 +62,19 @@ export function BasicsSection({
             }}
           />
           <Group grow>
-            <TextInput
+            <Select
               className="rounded outline-none"
               label="Department"
               aria-label="Department"
+              data={withCurrentSelectOption(
+                selectOptions(JOB_DEPARTMENT),
+                form.values.department,
+              )}
+              clearable
+              searchable
               {...form.getInputProps('department')}
-              onChange={(e) => {
-                form.setFieldValue('department', e.currentTarget.value);
+              onChange={(value) => {
+                form.setFieldValue('department', value ?? '');
                 onDirty();
               }}
             />
@@ -175,13 +181,15 @@ export function BasicsSection({
                 onDirty();
               }}
             />
-            <TextInput
+            <Select
               className="rounded outline-none"
               label="Currency"
               aria-label="Salary currency"
+              data={withCurrentSelectOption(selectOptions(JOB_CURRENCY), form.values.currency)}
+              clearable={false}
               {...form.getInputProps('currency')}
-              onChange={(e) => {
-                form.setFieldValue('currency', e.currentTarget.value);
+              onChange={(value) => {
+                form.setFieldValue('currency', value ?? 'USD');
                 onDirty();
               }}
             />

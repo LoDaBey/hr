@@ -1,5 +1,8 @@
 -- =====================================================================
 -- HR Recruitment Automation — MVP schema (PostgreSQL 15+, Render)
+-- Table names are prefixed HRSYSTEM_ so this schema can share a database
+-- with the existing production tables (see scripts/production-DB).
+--
 -- Run once:  see scripts/README.md
 -- Idempotent: safe to re-run.
 -- =====================================================================
@@ -8,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;   -- gen_random_uuid(), digest()
 
 -- ---------------------------------------------------------------- enums
 DO $$ BEGIN
-  CREATE TYPE app_stage AS ENUM (
+  CREATE TYPE HRSYSTEM_app_stage AS ENUM (
     'APPLICATION_RECEIVED','CV_PROCESSING','INITIAL_SCREENING','INITIAL_SCREENING_REVIEW',
     'INITIAL_SHORTLISTED','INITIAL_REJECTED',
     'TECH_ASSESSMENT_SENT','TECH_ASSESSMENT_STARTED','TECH_ASSESSMENT_SUBMITTED',
@@ -21,24 +24,24 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE app_status AS ENUM ('ACTIVE','ON_HOLD','REJECTED','HIRED','WITHDRAWN');
+  CREATE TYPE HRSYSTEM_app_status AS ENUM ('ACTIVE','ON_HOLD','REJECTED','HIRED','WITHDRAWN');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE ai_recommendation AS ENUM
+  CREATE TYPE HRSYSTEM_ai_recommendation AS ENUM
     ('STRONG_SHORTLIST','SHORTLIST','MANUAL_REVIEW','RECOMMEND_REJECT');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE assessment_kind AS ENUM ('ASSESSMENT','TECH_TEST');
+  CREATE TYPE HRSYSTEM_assessment_kind AS ENUM ('ASSESSMENT','TECH_TEST');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE comm_status AS ENUM ('PENDING','SENT','FAILED','CANCELLED');
+  CREATE TYPE HRSYSTEM_comm_status AS ENUM ('PENDING','SENT','FAILED','CANCELLED');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ---------------------------------------------------------------- users
-CREATE TABLE IF NOT EXISTS users (
+-- ---------------------------------------------------------------- HRSYSTEM_users
+CREATE TABLE IF NOT EXISTS HRSYSTEM_users (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email         text UNIQUE NOT NULL,
   password_hash text NOT NULL,                       -- bcrypt
@@ -50,8 +53,8 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
--- ----------------------------------------------------------------- jobs
-CREATE TABLE IF NOT EXISTS jobs (
+-- ----------------------------------------------------------------- HRSYSTEM_jobs
+CREATE TABLE IF NOT EXISTS HRSYSTEM_jobs (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   slug                   text UNIQUE NOT NULL,
   title                  text NOT NULL,
@@ -89,20 +92,20 @@ CREATE TABLE IF NOT EXISTS jobs (
   application_deadline   timestamptz,
   vacancies              int NOT NULL DEFAULT 1,
   hiring_manager         text,
-  assigned_hr_id         uuid REFERENCES users(id) ON DELETE SET NULL,
+  assigned_hr_id         uuid REFERENCES HRSYSTEM_users(id) ON DELETE SET NULL,
   status                 text NOT NULL DEFAULT 'DRAFT'
                          CHECK (status IN ('DRAFT','OPEN','PAUSED','CLOSED')),
-  created_by             uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_by             uuid REFERENCES HRSYSTEM_users(id) ON DELETE SET NULL,
   created_at             timestamptz NOT NULL DEFAULT now(),
   updated_at             timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status) WHERE status = 'OPEN';
-CREATE INDEX IF NOT EXISTS idx_jobs_assigned ON jobs(assigned_hr_id);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_jobs_status ON HRSYSTEM_jobs(status) WHERE status = 'OPEN';
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_jobs_assigned ON HRSYSTEM_jobs(assigned_hr_id);
 
 -- -------------------------------------------------------- job questions
-CREATE TABLE IF NOT EXISTS job_questions (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_job_questions (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  job_id      uuid NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  job_id      uuid NOT NULL REFERENCES HRSYSTEM_jobs(id) ON DELETE CASCADE,
   order_index int NOT NULL DEFAULT 0,
   label       text NOT NULL,
   key         text NOT NULL,                          -- machine name used by screening
@@ -112,13 +115,13 @@ CREATE TABLE IF NOT EXISTS job_questions (
   is_required boolean NOT NULL DEFAULT true,
   UNIQUE (job_id, key)
 );
-CREATE INDEX IF NOT EXISTS idx_job_questions_job ON job_questions(job_id, order_index);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_job_questions_job ON HRSYSTEM_job_questions(job_id, order_index);
 
--- ---------------------------------------------- assessments (both kinds)
-CREATE TABLE IF NOT EXISTS assessments (
+-- ---------------------------------------------- HRSYSTEM_assessments (both kinds)
+CREATE TABLE IF NOT EXISTS HRSYSTEM_assessments (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  job_id           uuid NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-  kind             assessment_kind NOT NULL,
+  job_id           uuid NOT NULL REFERENCES HRSYSTEM_jobs(id) ON DELETE CASCADE,
+  kind             HRSYSTEM_assessment_kind NOT NULL,
   title            text NOT NULL,
   instructions     text,
   duration_minutes int NOT NULL DEFAULT 60,
@@ -132,14 +135,14 @@ CREATE TABLE IF NOT EXISTS assessments (
 );
 -- uq_assessment_active: only one ACTIVE paper per job+kind (many inactive OK).
 -- Replaces the old UNIQUE (job_id, kind, is_active) which blocked a second inactive row.
-CREATE UNIQUE INDEX IF NOT EXISTS assessments_one_active_per_job_kind
-  ON assessments (job_id, kind)
+CREATE UNIQUE INDEX IF NOT EXISTS HRSYSTEM_assessments_one_active_per_job_kind
+  ON HRSYSTEM_assessments (job_id, kind)
   WHERE is_active;
-CREATE INDEX IF NOT EXISTS idx_assessments_job ON assessments(job_id, kind);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_assessments_job ON HRSYSTEM_assessments(job_id, kind);
 
-CREATE TABLE IF NOT EXISTS assessment_questions (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_assessment_questions (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  assessment_id uuid NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+  assessment_id uuid NOT NULL REFERENCES HRSYSTEM_assessments(id) ON DELETE CASCADE,
   order_index   int NOT NULL DEFAULT 0,
   type          text NOT NULL CHECK (type IN
                 ('MCQ','TEXT','CODING','SQL','DEBUGGING','ARCHITECTURE','SCENARIO','FILE')),
@@ -150,10 +153,10 @@ CREATE TABLE IF NOT EXISTS assessment_questions (
   max_score     int NOT NULL DEFAULT 10,
   rubric        text                                  -- fed to the AI evaluator
 );
-CREATE INDEX IF NOT EXISTS idx_aq_assessment ON assessment_questions(assessment_id, order_index);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_aq_assessment ON HRSYSTEM_assessment_questions(assessment_id, order_index);
 
--- ----------------------------------------------------------- candidates
-CREATE TABLE IF NOT EXISTS candidates (
+-- ----------------------------------------------------------- HRSYSTEM_candidates
+CREATE TABLE IF NOT EXISTS HRSYSTEM_candidates (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email          text UNIQUE NOT NULL,
   phone          text,
@@ -167,16 +170,16 @@ CREATE TABLE IF NOT EXISTS candidates (
   created_at     timestamptz NOT NULL DEFAULT now(),
   updated_at     timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_candidates_phone ON candidates(phone);
-CREATE INDEX IF NOT EXISTS idx_candidates_name  ON candidates USING gin (to_tsvector('simple', full_name));
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_candidates_phone ON HRSYSTEM_candidates(phone);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_candidates_name  ON HRSYSTEM_candidates USING gin (to_tsvector('simple', full_name));
 
--- --------------------------------------------------------- applications
-CREATE TABLE IF NOT EXISTS applications (
+-- --------------------------------------------------------- HRSYSTEM_applications
+CREATE TABLE IF NOT EXISTS HRSYSTEM_applications (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  candidate_id        uuid NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
-  job_id              uuid NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-  stage               app_stage  NOT NULL DEFAULT 'APPLICATION_RECEIVED',
-  status              app_status NOT NULL DEFAULT 'ACTIVE',
+  candidate_id        uuid NOT NULL REFERENCES HRSYSTEM_candidates(id) ON DELETE CASCADE,
+  job_id              uuid NOT NULL REFERENCES HRSYSTEM_jobs(id) ON DELETE CASCADE,
+  stage               HRSYSTEM_app_stage  NOT NULL DEFAULT 'APPLICATION_RECEIVED',
+  status              HRSYSTEM_app_status NOT NULL DEFAULT 'ACTIVE',
   -- professional snapshot (candidate-supplied; never overwritten by AI)
   employment_status   text,
   current_company     text,
@@ -197,28 +200,28 @@ CREATE TABLE IF NOT EXISTS applications (
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_app_candidate_job_active
-  ON applications(candidate_id, job_id)
+CREATE UNIQUE INDEX IF NOT EXISTS HRSYSTEM_uq_app_candidate_job_active
+  ON HRSYSTEM_applications(candidate_id, job_id)
   WHERE status NOT IN ('REJECTED','WITHDRAWN');
-CREATE INDEX IF NOT EXISTS idx_app_job_stage ON applications(job_id, stage);
-CREATE INDEX IF NOT EXISTS idx_app_stage     ON applications(stage) WHERE status='ACTIVE';
-CREATE INDEX IF NOT EXISTS idx_app_created   ON applications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_app_score     ON applications(screening_score DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_app_job_stage ON HRSYSTEM_applications(job_id, stage);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_app_stage     ON HRSYSTEM_applications(stage) WHERE status='ACTIVE';
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_app_created   ON HRSYSTEM_applications(created_at DESC);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_app_score     ON HRSYSTEM_applications(screening_score DESC NULLS LAST);
 
-CREATE TABLE IF NOT EXISTS application_answers (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_application_answers (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  application_id uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
-  question_id    uuid REFERENCES job_questions(id) ON DELETE SET NULL,
+  application_id uuid NOT NULL REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
+  question_id    uuid REFERENCES HRSYSTEM_job_questions(id) ON DELETE SET NULL,
   question_key   text NOT NULL,
   answer         jsonb NOT NULL,
   UNIQUE (application_id, question_key)
 );
 
--- ------------------------------------------------------------ documents
-CREATE TABLE IF NOT EXISTS documents (
+-- ------------------------------------------------------------ HRSYSTEM_documents
+CREATE TABLE IF NOT EXISTS HRSYSTEM_documents (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  candidate_id   uuid NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
-  application_id uuid REFERENCES applications(id) ON DELETE CASCADE,
+  candidate_id   uuid NOT NULL REFERENCES HRSYSTEM_candidates(id) ON DELETE CASCADE,
+  application_id uuid REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
   doc_type       text NOT NULL DEFAULT 'CV',          -- CV / PORTFOLIO / ATTACHMENT
   public_id      text NOT NULL,                       -- Cloudinary
   resource_type  text NOT NULL DEFAULT 'raw',
@@ -232,14 +235,14 @@ CREATE TABLE IF NOT EXISTS documents (
                  CHECK (parse_status IN ('PENDING','DONE','MANUAL','FAILED')),
   created_at     timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_docs_app ON documents(application_id);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_docs_app ON HRSYSTEM_documents(application_id);
 
 -- ---------------------------------------------------- screening results
-CREATE TABLE IF NOT EXISTS screening_results (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_screening_results (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  application_id       uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  application_id       uuid NOT NULL REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
   score                int,
-  recommendation       ai_recommendation,
+  recommendation       HRSYSTEM_ai_recommendation,
   confidence           numeric(3,2),
   strengths            jsonb DEFAULT '[]'::jsonb,
   weaknesses           jsonb DEFAULT '[]'::jsonb,
@@ -251,18 +254,18 @@ CREATE TABLE IF NOT EXISTS screening_results (
   -- HR side, stored next to AI, never on top of it
   hr_decision          text,
   hr_override_reason   text,
-  hr_user_id           uuid REFERENCES users(id) ON DELETE SET NULL,
+  hr_user_id           uuid REFERENCES HRSYSTEM_users(id) ON DELETE SET NULL,
   hr_decided_at        timestamptz,
   created_at           timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_screening_app ON screening_results(application_id);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_screening_app ON HRSYSTEM_screening_results(application_id);
 
 -- -------------------------------------------------- candidate sittings
-CREATE TABLE IF NOT EXISTS candidate_assessments (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_candidate_assessments (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  application_id    uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
-  assessment_id     uuid NOT NULL REFERENCES assessments(id) ON DELETE RESTRICT,
-  kind              assessment_kind NOT NULL,
+  application_id    uuid NOT NULL REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
+  assessment_id     uuid NOT NULL REFERENCES HRSYSTEM_assessments(id) ON DELETE RESTRICT,
+  kind              HRSYSTEM_assessment_kind NOT NULL,
   status            text NOT NULL DEFAULT 'INVITED'
                     CHECK (status IN ('INVITED','STARTED','SUBMITTED','EXPIRED','CANCELLED')),
   invite_deadline   timestamptz NOT NULL,
@@ -276,7 +279,7 @@ CREATE TABLE IF NOT EXISTS candidate_assessments (
   ai_score          int,
   ai_max_score      int,
   hr_decision       text,
-  hr_user_id        uuid REFERENCES users(id) ON DELETE SET NULL,
+  hr_user_id        uuid REFERENCES HRSYSTEM_users(id) ON DELETE SET NULL,
   hr_decided_at     timestamptz,
   -- TECH_TEST only
   recording_status  text CHECK (recording_status IN ('NOT_REQUIRED','UPLOAD_PENDING','READY','FAILED')),
@@ -285,24 +288,24 @@ CREATE TABLE IF NOT EXISTS candidate_assessments (
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_ca_app     ON candidate_assessments(application_id, kind);
-CREATE INDEX IF NOT EXISTS idx_ca_status  ON candidate_assessments(status, invite_deadline);
-CREATE INDEX IF NOT EXISTS idx_ca_expires ON candidate_assessments(status, expires_at);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_ca_app     ON HRSYSTEM_candidate_assessments(application_id, kind);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_ca_status  ON HRSYSTEM_candidate_assessments(status, invite_deadline);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_ca_expires ON HRSYSTEM_candidate_assessments(status, expires_at);
 
-CREATE TABLE IF NOT EXISTS assessment_answers (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_assessment_answers (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  candidate_assessment_id uuid NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
-  question_id            uuid NOT NULL REFERENCES assessment_questions(id) ON DELETE CASCADE,
+  candidate_assessment_id uuid NOT NULL REFERENCES HRSYSTEM_candidate_assessments(id) ON DELETE CASCADE,
+  question_id            uuid NOT NULL REFERENCES HRSYSTEM_assessment_questions(id) ON DELETE CASCADE,
   answer                 jsonb NOT NULL,
   time_spent_seconds     int,
   answered_at            timestamptz NOT NULL DEFAULT now(),
   UNIQUE (candidate_assessment_id, question_id)
 );
 
-CREATE TABLE IF NOT EXISTS assessment_evaluations (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_assessment_evaluations (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  candidate_assessment_id uuid NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
-  question_id             uuid REFERENCES assessment_questions(id) ON DELETE CASCADE,
+  candidate_assessment_id uuid NOT NULL REFERENCES HRSYSTEM_candidate_assessments(id) ON DELETE CASCADE,
+  question_id             uuid REFERENCES HRSYSTEM_assessment_questions(id) ON DELETE CASCADE,
   is_overall              boolean NOT NULL DEFAULT false,
   score                   numeric(6,2),
   max_score               numeric(6,2),
@@ -315,12 +318,12 @@ CREATE TABLE IF NOT EXISTS assessment_evaluations (
   raw_response            jsonb,
   created_at              timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_eval_ca ON assessment_evaluations(candidate_assessment_id);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_eval_ca ON HRSYSTEM_assessment_evaluations(candidate_assessment_id);
 
--- ---------------------------------------------- proctoring + recordings
-CREATE TABLE IF NOT EXISTS proctoring_events (
+-- ---------------------------------------------- proctoring + HRSYSTEM_recordings
+CREATE TABLE IF NOT EXISTS HRSYSTEM_proctoring_events (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  candidate_assessment_id uuid NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+  candidate_assessment_id uuid NOT NULL REFERENCES HRSYSTEM_candidate_assessments(id) ON DELETE CASCADE,
   event                   text NOT NULL,   -- TAB_CHANGED, FULLSCREEN_EXIT, CAMERA_OFF, MIC_OFF,
                                            -- WINDOW_BLUR, CONNECTION_LOST, PASTE_DETECTED
   severity                text NOT NULL DEFAULT 'INFO'
@@ -331,11 +334,11 @@ CREATE TABLE IF NOT EXISTS proctoring_events (
   created_at              timestamptz NOT NULL DEFAULT now(),
   UNIQUE (candidate_assessment_id, event_id)
 );
-CREATE INDEX IF NOT EXISTS idx_proctor_ca ON proctoring_events(candidate_assessment_id, occurred_at);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_proctor_ca ON HRSYSTEM_proctoring_events(candidate_assessment_id, occurred_at);
 
-CREATE TABLE IF NOT EXISTS recordings (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_recordings (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  candidate_assessment_id uuid NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+  candidate_assessment_id uuid NOT NULL REFERENCES HRSYSTEM_candidate_assessments(id) ON DELETE CASCADE,
   part_no                 int NOT NULL DEFAULT 1,
   public_id               text NOT NULL,
   resource_type           text NOT NULL DEFAULT 'video',
@@ -349,10 +352,10 @@ CREATE TABLE IF NOT EXISTS recordings (
   UNIQUE (candidate_assessment_id, part_no)
 );
 
--- ----------------------------------------------------------- interviews
-CREATE TABLE IF NOT EXISTS interviews (
+-- ----------------------------------------------------------- HRSYSTEM_interviews
+CREATE TABLE IF NOT EXISTS HRSYSTEM_interviews (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  application_id    uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  application_id    uuid NOT NULL REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
   round_no          int NOT NULL DEFAULT 1,
   scheduled_at      timestamptz NOT NULL,
   timezone          text NOT NULL DEFAULT 'UTC',
@@ -369,16 +372,16 @@ CREATE TABLE IF NOT EXISTS interviews (
   salary_discussed  numeric(12,2),
   availability_note text,
   recommendation    text,
-  created_by        uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_by        uuid REFERENCES HRSYSTEM_users(id) ON DELETE SET NULL,
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (application_id, round_no)
 );
-CREATE INDEX IF NOT EXISTS idx_interviews_upcoming
-  ON interviews(scheduled_at) WHERE status = 'SCHEDULED';
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_interviews_upcoming
+  ON HRSYSTEM_interviews(scheduled_at) WHERE status = 'SCHEDULED';
 
 -- ------------------------------------------------- email outbox + templates
-CREATE TABLE IF NOT EXISTS email_templates (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_email_templates (
   key        text PRIMARY KEY,
   subject    text NOT NULL,
   body_html  text NOT NULL,
@@ -386,15 +389,15 @@ CREATE TABLE IF NOT EXISTS email_templates (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS communications (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_communications (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  candidate_id     uuid REFERENCES candidates(id) ON DELETE SET NULL,
-  application_id   uuid REFERENCES applications(id) ON DELETE CASCADE,
-  template_key     text NOT NULL REFERENCES email_templates(key),
+  candidate_id     uuid REFERENCES HRSYSTEM_candidates(id) ON DELETE SET NULL,
+  application_id   uuid REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
+  template_key     text NOT NULL REFERENCES HRSYSTEM_email_templates(key),
   to_email         text NOT NULL,
   subject          text,
   variables        jsonb NOT NULL DEFAULT '{}'::jsonb,
-  status           comm_status NOT NULL DEFAULT 'PENDING',
+  status           HRSYSTEM_comm_status NOT NULL DEFAULT 'PENDING',
   attempts         int NOT NULL DEFAULT 0,
   last_error       text,
   gmail_message_id text,
@@ -403,19 +406,19 @@ CREATE TABLE IF NOT EXISTS communications (
   sent_at          timestamptz,
   created_at       timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_comm_pending
-  ON communications(status, scheduled_for) WHERE status = 'PENDING';
-CREATE INDEX IF NOT EXISTS idx_comm_app ON communications(application_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_comm_pending
+  ON HRSYSTEM_communications(status, scheduled_for) WHERE status = 'PENDING';
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_comm_app ON HRSYSTEM_communications(application_id, created_at DESC);
 
 -- ------------------------------------------------ audit + errors + tokens
-CREATE TABLE IF NOT EXISTS recruitment_events (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_recruitment_events (
   id             bigserial PRIMARY KEY,
-  application_id uuid REFERENCES applications(id) ON DELETE CASCADE,
-  candidate_id   uuid REFERENCES candidates(id) ON DELETE CASCADE,
-  job_id         uuid REFERENCES jobs(id) ON DELETE CASCADE,
+  application_id uuid REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
+  candidate_id   uuid REFERENCES HRSYSTEM_candidates(id) ON DELETE CASCADE,
+  job_id         uuid REFERENCES HRSYSTEM_jobs(id) ON DELETE CASCADE,
   event_type     text NOT NULL,
-  from_stage     app_stage,
-  to_stage       app_stage,
+  from_stage     HRSYSTEM_app_stage,
+  to_stage       HRSYSTEM_app_stage,
   actor_type     text NOT NULL DEFAULT 'SYSTEM'
                  CHECK (actor_type IN ('SYSTEM','HR','CANDIDATE','AI','CRON')),
   actor_id       uuid,
@@ -423,55 +426,55 @@ CREATE TABLE IF NOT EXISTS recruitment_events (
   payload        jsonb DEFAULT '{}'::jsonb,
   created_at     timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_events_app ON recruitment_events(application_id, created_at);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_events_app ON HRSYSTEM_recruitment_events(application_id, created_at);
 -- append-only guard: history cannot be REWRITTEN. Deleting a whole record (a job, a
 -- candidate, a right-to-erasure request) cascades and must stay possible, so this
--- blocks UPDATE only. Blocking DELETE too would make jobs and candidates undeletable.
-CREATE OR REPLACE FUNCTION deny_event_update() RETURNS trigger AS $$
+-- blocks UPDATE only. Blocking DELETE too would make HRSYSTEM_jobs and HRSYSTEM_candidates undeletable.
+CREATE OR REPLACE FUNCTION HRSYSTEM_deny_event_update() RETURNS trigger AS $$
 BEGIN
-  RAISE EXCEPTION 'recruitment_events is append-only: rows cannot be edited';
+  RAISE EXCEPTION 'HRSYSTEM_recruitment_events is append-only: rows cannot be edited';
 END $$ LANGUAGE plpgsql;
-DROP TRIGGER IF EXISTS trg_events_immutable ON recruitment_events;
-DROP TRIGGER IF EXISTS trg_events_no_update ON recruitment_events;
-CREATE TRIGGER trg_events_no_update BEFORE UPDATE ON recruitment_events
-  FOR EACH ROW EXECUTE FUNCTION deny_event_update();
+DROP TRIGGER IF EXISTS trg_events_immutable ON HRSYSTEM_recruitment_events;
+DROP TRIGGER IF EXISTS HRSYSTEM_trg_events_no_update ON HRSYSTEM_recruitment_events;
+CREATE TRIGGER HRSYSTEM_trg_events_no_update BEFORE UPDATE ON HRSYSTEM_recruitment_events
+  FOR EACH ROW EXECUTE FUNCTION HRSYSTEM_deny_event_update();
 
-CREATE TABLE IF NOT EXISTS workflow_errors (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_workflow_errors (
   id             bigserial PRIMARY KEY,
   action         text,
   node           text,
   error_message  text,
   error_stack    text,
-  application_id uuid REFERENCES applications(id) ON DELETE SET NULL,
-  candidate_id   uuid REFERENCES candidates(id) ON DELETE SET NULL,
+  application_id uuid REFERENCES HRSYSTEM_applications(id) ON DELETE SET NULL,
+  candidate_id   uuid REFERENCES HRSYSTEM_candidates(id) ON DELETE SET NULL,
   input_ref      jsonb,
   retry_count    int NOT NULL DEFAULT 0,
   resolved       boolean NOT NULL DEFAULT false,
   created_at     timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_errors_open ON workflow_errors(created_at DESC) WHERE resolved = false;
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_errors_open ON HRSYSTEM_workflow_errors(created_at DESC) WHERE resolved = false;
 
-CREATE TABLE IF NOT EXISTS access_tokens (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_access_tokens (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   token_hash              text UNIQUE NOT NULL,       -- sha256(token + pepper)
   purpose                 text NOT NULL CHECK (purpose IN ('ASSESSMENT','TECH_TEST')),
-  application_id          uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
-  candidate_assessment_id uuid NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+  application_id          uuid NOT NULL REFERENCES HRSYSTEM_applications(id) ON DELETE CASCADE,
+  candidate_assessment_id uuid NOT NULL REFERENCES HRSYSTEM_candidate_assessments(id) ON DELETE CASCADE,
   expires_at              timestamptz NOT NULL,
   used_at                 timestamptz,
   created_at              timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_tokens_ca ON access_tokens(candidate_assessment_id);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_tokens_ca ON HRSYSTEM_access_tokens(candidate_assessment_id);
 
-CREATE TABLE IF NOT EXISTS idempotency_keys (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_idempotency_keys (
   key        text PRIMARY KEY,
   action     text NOT NULL,
   response   jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_idem_created ON idempotency_keys(created_at);
+CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_idem_created ON HRSYSTEM_idempotency_keys(created_at);
 
-CREATE TABLE IF NOT EXISTS rate_limits (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_rate_limits (
   bucket     text NOT NULL,          -- e.g. 'apply:1.2.3.4'
   window_start timestamptz NOT NULL,
   hits       int NOT NULL DEFAULT 1,
@@ -479,34 +482,34 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 );
 
 -- Single-row global settings (exactly one row; id CHECK prevents a second)
-CREATE TABLE IF NOT EXISTS app_settings (
+CREATE TABLE IF NOT EXISTS HRSYSTEM_app_settings (
   id                                 boolean PRIMARY KEY DEFAULT true CHECK (id),
   auto_send_assessment               boolean NOT NULL DEFAULT true,
   auto_send_assessment_delay_minutes int     NOT NULL DEFAULT 60,
   auto_send_techtest                 boolean NOT NULL DEFAULT true,
   auto_send_techtest_delay_minutes   int     NOT NULL DEFAULT 60,
   updated_at                         timestamptz NOT NULL DEFAULT now(),
-  updated_by                         uuid REFERENCES users(id) ON DELETE SET NULL
+  updated_by                         uuid REFERENCES HRSYSTEM_users(id) ON DELETE SET NULL
 );
-INSERT INTO app_settings (id) VALUES (true) ON CONFLICT DO NOTHING;
+INSERT INTO HRSYSTEM_app_settings (id) VALUES (true) ON CONFLICT DO NOTHING;
 
 -- --------------------------------------------------- updated_at triggers
-CREATE OR REPLACE FUNCTION touch_updated_at() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION HRSYSTEM_touch_updated_at() RETURNS trigger AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END $$ LANGUAGE plpgsql;
 
 DO $$ DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['users','jobs','candidates','applications',
-                           'candidate_assessments','interviews','app_settings']
+  FOREACH t IN ARRAY ARRAY['HRSYSTEM_users','HRSYSTEM_jobs','HRSYSTEM_candidates','HRSYSTEM_applications',
+                           'HRSYSTEM_candidate_assessments','HRSYSTEM_interviews','HRSYSTEM_app_settings']
   LOOP
-    EXECUTE format('DROP TRIGGER IF EXISTS trg_touch_%1$s ON %1$s', t);
-    EXECUTE format('CREATE TRIGGER trg_touch_%1$s BEFORE UPDATE ON %1$s
-                    FOR EACH ROW EXECUTE FUNCTION touch_updated_at()', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS HRSYSTEM_trg_touch_%1$s ON %1$s', t);
+    EXECUTE format('CREATE TRIGGER HRSYSTEM_trg_touch_%1$s BEFORE UPDATE ON %1$s
+                    FOR EACH ROW EXECUTE FUNCTION HRSYSTEM_touch_updated_at()', t);
   END LOOP;
 END $$;
 
 
-INSERT INTO email_templates (key, subject, body_html) VALUES
+INSERT INTO HRSYSTEM_email_templates (key, subject, body_html) VALUES
 ('APPLICATION_RECEIVED','We received your application for {{job_title}}',
  '<p>Hi {{candidate_name}},</p><p>Thanks for applying to <b>{{job_title}}</b>. Our team is reviewing your application and we will get back to you.</p><p>{{hr_name}}</p>'),
 ('INITIAL_SHORTLIST','Next step for your {{job_title}} application',

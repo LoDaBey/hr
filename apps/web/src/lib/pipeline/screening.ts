@@ -84,7 +84,7 @@ export function evaluateHardRequirements(
 
 async function loadAnswers(applicationId: string): Promise<Record<string, unknown>> {
   const rows = await query<{ question_key: string; answer: unknown }>(
-    `SELECT question_key, answer FROM application_answers WHERE application_id = $1`,
+    `SELECT question_key, answer FROM HRSYSTEM_application_answers WHERE application_id = $1`,
     [applicationId],
   );
   const answers: Record<string, unknown> = {};
@@ -95,16 +95,16 @@ async function loadAnswers(applicationId: string): Promise<Record<string, unknow
 export async function runCvParseAndScreening(applicationId: string): Promise<void> {
   try {
     const application = await one<Application>(
-      `SELECT * FROM applications WHERE id = $1`,
+      `SELECT * FROM HRSYSTEM_applications WHERE id = $1`,
       [applicationId],
     );
     if (!application) return;
 
-    const job = await one<Job>(`SELECT * FROM jobs WHERE id = $1`, [application.job_id]);
+    const job = await one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [application.job_id]);
     if (!job) return;
 
     const document = await one<Document>(
-      `SELECT * FROM documents
+      `SELECT * FROM HRSYSTEM_documents
        WHERE application_id = $1 AND doc_type = 'CV'
        ORDER BY created_at DESC
        LIMIT 1`,
@@ -117,7 +117,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       const format = (document.format ?? '').toLowerCase();
       if (format !== 'pdf') {
         await one(
-          `UPDATE documents SET parse_status = 'MANUAL' WHERE id = $1`,
+          `UPDATE HRSYSTEM_documents SET parse_status = 'MANUAL' WHERE id = $1`,
           [document.id],
         );
       } else {
@@ -131,21 +131,21 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
           if (result.ok) {
             parsed = asRecord(result.data.parsed);
             await one(
-              `UPDATE documents
+              `UPDATE HRSYSTEM_documents
                SET raw_text = $1, parsed = $2::jsonb, parse_status = 'DONE'
                WHERE id = $3`,
               [result.data.raw_text, JSON.stringify(result.data.parsed ?? {}), document.id],
             );
           } else {
             await one(
-              `UPDATE documents SET parse_status = 'FAILED' WHERE id = $1`,
+              `UPDATE HRSYSTEM_documents SET parse_status = 'FAILED' WHERE id = $1`,
               [document.id],
             );
           }
         } catch (error) {
           console.error('cv.parse failed', applicationId, error);
           await one(
-            `UPDATE documents SET parse_status = 'FAILED' WHERE id = $1`,
+            `UPDATE HRSYSTEM_documents SET parse_status = 'FAILED' WHERE id = $1`,
             [document.id],
           );
         }
@@ -206,7 +206,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     else if (hardFails.length && decision !== 'RECOMMEND_REJECT') decision = 'MANUAL_REVIEW';
 
     await one(
-      `INSERT INTO screening_results (
+      `INSERT INTO HRSYSTEM_screening_results (
          application_id, score, recommendation, confidence, strengths, weaknesses,
          missing_requirements, hard_fail, reasoning_summary, model, raw_response
        )
@@ -227,7 +227,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     );
 
     await one(
-      `UPDATE applications
+      `UPDATE HRSYSTEM_applications
        SET screening_score = $1, stage = 'INITIAL_SCREENING_REVIEW'
        WHERE id = $2
          AND stage IN ('APPLICATION_RECEIVED', 'CV_PROCESSING', 'INITIAL_SCREENING')`,
@@ -253,7 +253,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     console.error('runCvParseAndScreening', applicationId, error);
     try {
       await one(
-        `UPDATE applications
+        `UPDATE HRSYSTEM_applications
          SET stage = 'INITIAL_SCREENING_REVIEW'
          WHERE id = $1
            AND stage IN ('APPLICATION_RECEIVED', 'CV_PROCESSING', 'INITIAL_SCREENING')`,

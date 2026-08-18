@@ -47,6 +47,15 @@ export type QuestionType =
   | 'FILE';
 
 export type JobStatus = 'DRAFT' | 'OPEN' | 'PAUSED' | 'CLOSED';
+export type JobDepartment =
+  | 'Social Media'
+  | 'Data Analysis & Monitoring'
+  | 'Human Resources'
+  | 'Digital Engagement'
+  | 'Web Development'
+  | 'QC'
+  | 'Productions';
+export type JobCurrency = 'EGP' | 'USD' | 'AED';
 export type JobQuestionType =
   | 'TEXT'
   | 'TEXTAREA'

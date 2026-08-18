@@ -92,13 +92,13 @@ export async function POST(
     const result = await tx(async (client) => {
       for (const row of answers) {
         await client.query(
-          `INSERT INTO assessment_answers (
+          `INSERT INTO HRSYSTEM_assessment_answers (
              candidate_assessment_id, question_id, answer, time_spent_seconds, answered_at
            )
            VALUES ($1, $2, $3::jsonb, $4, now())
            ON CONFLICT (candidate_assessment_id, question_id) DO UPDATE SET
              answer = EXCLUDED.answer,
-             time_spent_seconds = COALESCE(EXCLUDED.time_spent_seconds, assessment_answers.time_spent_seconds),
+             time_spent_seconds = COALESCE(EXCLUDED.time_spent_seconds, HRSYSTEM_assessment_answers.time_spent_seconds),
              answered_at = now()`,
           [
             sitting.sitting_id,
@@ -112,7 +112,7 @@ export async function POST(
       if (events?.length) {
         for (const ev of events) {
           await client.query(
-            `INSERT INTO proctoring_events (
+            `INSERT INTO HRSYSTEM_proctoring_events (
                candidate_assessment_id, event, severity, occurred_at, metadata, event_id
              ) VALUES ($1, $2, $3, $4::timestamptz, $5::jsonb, $6)
              ON CONFLICT (candidate_assessment_id, event_id) DO NOTHING`,
@@ -127,9 +127,9 @@ export async function POST(
           );
         }
         await client.query(
-          `UPDATE candidate_assessments
+          `UPDATE HRSYSTEM_candidate_assessments
            SET violations_count = (
-                 SELECT count(*)::int FROM proctoring_events
+                 SELECT count(*)::int FROM HRSYSTEM_proctoring_events
                  WHERE candidate_assessment_id = $1 AND severity IN ('WARN', 'CRITICAL')
                ),
                updated_at = now()
@@ -141,7 +141,7 @@ export async function POST(
       let recordingStatus = sitting.recording_status ?? 'UPLOAD_PENDING';
       if (recording) {
         await client.query(
-          `INSERT INTO recordings (
+          `INSERT INTO HRSYSTEM_recordings (
              candidate_assessment_id, part_no, public_id, resource_type, delivery_type,
              format, duration_seconds, bytes, started_at, ended_at
            ) VALUES ($1, $2, $3, 'video', 'authenticated', $4, $5, $6, $7::timestamptz, $8::timestamptz)
@@ -170,7 +170,7 @@ export async function POST(
 
       const updated = await oneTx<{ submitted_at: string }>(
         client,
-        `UPDATE candidate_assessments
+        `UPDATE HRSYSTEM_candidate_assessments
          SET status = 'SUBMITTED',
              submitted_at = now(),
              late = CASE
@@ -189,26 +189,26 @@ export async function POST(
       }
 
       await client.query(
-        `UPDATE access_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL`,
+        `UPDATE HRSYSTEM_access_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL`,
         [sitting.token_id],
       );
 
       await client.query(
-        `UPDATE applications
-         SET stage = 'RECORDED_TECH_SUBMITTED'::app_stage, updated_at = now()
+        `UPDATE HRSYSTEM_applications
+         SET stage = 'RECORDED_TECH_SUBMITTED'::HRSYSTEM_app_stage, updated_at = now()
          WHERE id = $1`,
         [sitting.application_id],
       );
 
       await client.query(
-        `INSERT INTO recruitment_events (
+        `INSERT INTO HRSYSTEM_recruitment_events (
            application_id, candidate_id, job_id, event_type,
            from_stage, to_stage, actor_type, actor_label, payload
          )
          SELECT a.id, a.candidate_id, a.job_id, 'TECHTEST_SUBMITTED',
-                $2::app_stage, 'RECORDED_TECH_SUBMITTED'::app_stage,
+                $2::HRSYSTEM_app_stage, 'RECORDED_TECH_SUBMITTED'::HRSYSTEM_app_stage,
                 'CANDIDATE', $3, $4::jsonb
-         FROM applications a
+         FROM HRSYSTEM_applications a
          WHERE a.id = $1`,
         [
           sitting.application_id,

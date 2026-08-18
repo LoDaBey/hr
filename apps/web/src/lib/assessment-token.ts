@@ -85,12 +85,12 @@ export async function resolveToken(
             j.title AS job_title,
             s.title, s.instructions, s.duration_minutes AS assessment_duration_minutes,
             s.require_camera, s.require_mic, s.require_fullscreen, s.rules
-     FROM access_tokens t
-     JOIN candidate_assessments ca ON ca.id = t.candidate_assessment_id
-     JOIN assessments s ON s.id = ca.assessment_id
-     JOIN applications a ON a.id = ca.application_id
-     JOIN candidates c ON c.id = a.candidate_id
-     JOIN jobs j ON j.id = a.job_id
+     FROM HRSYSTEM_access_tokens t
+     JOIN HRSYSTEM_candidate_assessments ca ON ca.id = t.candidate_assessment_id
+     JOIN HRSYSTEM_assessments s ON s.id = ca.assessment_id
+     JOIN HRSYSTEM_applications a ON a.id = ca.application_id
+     JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+     JOIN HRSYSTEM_jobs j ON j.id = a.job_id
      WHERE t.token_hash = $1 AND t.purpose = $2`,
     [hashToken(raw), purpose],
   );

@@ -89,9 +89,9 @@ export async function POST(
       }>(
         client,
         `SELECT a.id, a.stage, a.candidate_id, a.job_id, c.email, c.full_name, j.title
-         FROM applications a
-         JOIN candidates c ON c.id = a.candidate_id
-         JOIN jobs j ON j.id = a.job_id
+         FROM HRSYSTEM_applications a
+         JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+         JOIN HRSYSTEM_jobs j ON j.id = a.job_id
          WHERE a.id = $1
          FOR UPDATE OF a`,
         [applicationId],
@@ -115,9 +115,9 @@ export async function POST(
       const nextStatus = statusFor(decision);
 
       await client.query(
-        `UPDATE applications
-         SET stage = $2::app_stage,
-             status = $3::app_status,
+        `UPDATE HRSYSTEM_applications
+         SET stage = $2::HRSYSTEM_app_stage,
+             status = $3::HRSYSTEM_app_status,
              reject_reason = CASE WHEN $4 = 'FINAL_REJECTED' THEN $5 ELSE reject_reason END,
              hold_reason = CASE WHEN $4 = 'HOLD' THEN $5 ELSE hold_reason END,
              updated_at = now()
@@ -126,12 +126,12 @@ export async function POST(
       );
 
       await client.query(
-        `INSERT INTO recruitment_events (
+        `INSERT INTO HRSYSTEM_recruitment_events (
            application_id, candidate_id, job_id, event_type,
            from_stage, to_stage, actor_type, actor_id, actor_label, payload
          ) VALUES (
            $1, $2, $3, 'FINAL_DECISION',
-           'FINAL_INTERVIEW_COMPLETED'::app_stage, $4::app_stage,
+           'FINAL_INTERVIEW_COMPLETED'::HRSYSTEM_app_stage, $4::HRSYSTEM_app_stage,
            'HR', $5, $6, $7::jsonb
          )`,
         [

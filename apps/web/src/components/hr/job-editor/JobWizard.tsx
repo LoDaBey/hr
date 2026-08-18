@@ -4,23 +4,21 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Group,
-  Paper,
   Stack,
   Stepper,
   Text,
-  Title,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MotionButton } from '@/components/MotionButton';
 import { ApiError, api } from '@/lib/api';
-import { DEFAULT_HARD_FAIL, JOB_STATUS, labelOf } from '@/lib/labels';
+import { DEFAULT_HARD_FAIL, normalizeJobCurrency } from '@/lib/labels';
 import { motionTransitionFast } from '@/lib/motion';
 import { rememberQuestions } from '@/lib/question-library';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { assignQuestionKeys } from '@/lib/question-key';
 import { publicJobUrl } from '@/lib/public-job-url';
-import { density, palette } from '@/theme';
+import { density } from '@/theme';
 import type {
   HrJobsAssessmentSetResult,
   HrJobsCreateResult,
@@ -28,7 +26,7 @@ import type {
   HrJobsQuestionsSetResult,
   HrJobsUpdateResult,
 } from '@/types/api';
-import type { HardRequirement, JobQuestion } from '@/types/domain';
+import type { HardRequirement, JobQuestion, JobStatus } from '@/types/domain';
 import type {
   AssessmentDraft,
   DemographicRuleState,
@@ -45,6 +43,7 @@ import {
 } from './AssessmentSection';
 import { BasicsSection } from './BasicsSection';
 import { EditorSection } from './EditorSection';
+import { JobStatusBadge } from './JobStatusBadge';
 import { JobWizardReview } from './JobWizardReview';
 import { QuestionsSection } from './QuestionsSection';
 import { ScreeningRulesSection } from './ScreeningRulesSection';
@@ -295,7 +294,7 @@ export function JobWizard({
       preferred_skills: job?.preferred_skills ?? [],
       salary_min: job?.salary_min ?? '',
       salary_max: job?.salary_max ?? '',
-      currency: job?.currency ?? 'USD',
+      currency: normalizeJobCurrency(job?.currency),
       vacancies: job?.vacancies ?? 1,
       application_deadline: job?.application_deadline ?? null,
       shortlist_threshold: job?.shortlist_threshold ?? 70,
@@ -331,6 +330,7 @@ export function JobWizard({
 
   const questionsReady = questions.some((q) => q.label.trim() !== '');
   const step1Valid = form.values.title.trim() !== '';
+  const requiredFieldsComplete = step1Valid;
   const step2Valid = questionsReady;
 
   function markDirty() {
@@ -651,7 +651,13 @@ export function JobWizard({
   const slideOffset = 24 * stepDirection;
 
   return (
-    <Stack gap={density.sectionGap} pb={density.stickyBarClearance}>
+    <Stack gap={density.sectionGap}>
+      {jobId && jobStatus ? (
+        <Group justify="flex-end">
+          <JobStatusBadge status={jobStatus as JobStatus} />
+        </Group>
+      ) : null}
+
       {publicUrl && (!guided || active === 4) ? <ShareLinkPanel url={publicUrl} /> : null}
 
       {dirty ? (
@@ -799,7 +805,7 @@ export function JobWizard({
               )}
               {publicUrl ? (
                 <Text size="sm" c="dimmed">
-                  This job is live. Share the link above with candidates.
+                  This job is live. Share the link above with HRSYSTEM_candidates.
                 </Text>
               ) : null}
             </EditorSection>
@@ -807,99 +813,76 @@ export function JobWizard({
         </motion.div>
       </AnimatePresence>
 
-      <Paper
-        withBorder
-        p="md"
-        radius={density.defaultRadius}
-        style={{
-          position: 'sticky',
-          bottom: 0,
-          zIndex: 5,
-          background: palette.paper,
-          borderColor: `${palette.ink}22`,
-          boxShadow: `0 -${density.stageRail.sm.gap}px ${density.stageRail.lg.height}px ${palette.ink}10`,
-        }}
-      >
-        <Group justify="space-between" align="center" wrap="wrap">
-          <Group gap="sm">
-            {guided && active > 0 ? (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label="Back to previous step"
-                variant="default"
-                disabled={saving || publishing}
-                onClick={() => goToStep(active - 1)}
-              >
-                Back
-              </MotionButton>
-            ) : null}
-
-            {guided && active < 4 ? (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label="Save and continue to next step"
-                loading={saving}
-                disabled={
-                  publishing ||
-                  (active === 0 && !step1Valid) ||
-                  (active === 1 && !step2Valid)
-                }
-                onClick={() => void handleNext()}
-              >
-                Next
-              </MotionButton>
-            ) : null}
-
-            {guided && (active === 2 || active === 3) ? (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label="Skip this optional step"
-                variant="subtle"
-                disabled={saving || publishing}
-                onClick={() => void handleSkip()}
-              >
-                Skip
-              </MotionButton>
-            ) : null}
-
-            {!guided ? (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label="Save job"
-                loading={saving}
-                disabled={publishing}
-                onClick={() => void handleSave()}
-              >
-                Save
-              </MotionButton>
-            ) : null}
-
-            {active === 4 && jobStatus !== 'OPEN' ? (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label="Publish job"
-                color="success"
-                loading={publishing}
-                disabled={saving}
-                onClick={() => void handlePublish()}
-              >
-                Publish
-              </MotionButton>
-            ) : null}
-          </Group>
-
-          {jobId && jobStatus ? (
-            <Group gap="xs">
-              <Title order={6} c="dimmed">
-                Status
-              </Title>
-              <Text size="sm" c="dimmed">
-                {labelOf(JOB_STATUS, jobStatus)}
-              </Text>
-            </Group>
+      <Group justify="space-between" align="center" wrap="wrap" pt="sm">
+        <Group gap="sm">
+          {guided && active > 0 ? (
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Back to previous step"
+              variant="default"
+              disabled={saving || publishing}
+              onClick={() => goToStep(active - 1)}
+            >
+              Back
+            </MotionButton>
           ) : null}
         </Group>
-      </Paper>
+
+        <Group gap="sm">
+          {guided && (active === 2 || active === 3) ? (
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Skip this optional step"
+              variant="subtle"
+              disabled={saving || publishing}
+              onClick={() => void handleSkip()}
+            >
+              Skip
+            </MotionButton>
+          ) : null}
+
+          {guided && active < 4 ? (
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Save and continue to next step"
+              loading={saving}
+              disabled={
+                publishing ||
+                (active === 0 && !step1Valid) ||
+                (active === 1 && !step2Valid)
+              }
+              onClick={() => void handleNext()}
+            >
+              Next
+            </MotionButton>
+          ) : null}
+
+          {!guided ? (
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Save job"
+              loading={saving}
+              disabled={publishing || !requiredFieldsComplete}
+              onClick={() => void handleSave()}
+            >
+              Save
+            </MotionButton>
+          ) : null}
+
+          {active === 4 && jobStatus !== 'OPEN' ? (
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Publish job"
+              color="success"
+              loading={publishing}
+              disabled={saving}
+              onClick={() => void handlePublish()}
+            >
+              Publish
+            </MotionButton>
+          ) : null}
+        </Group>
+      </Group>
     </Stack>
   );
 }

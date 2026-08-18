@@ -3,13 +3,13 @@ import { one } from '@/lib/db';
 
 export async function hitRateLimit(bucket: string, windowSeconds: number): Promise<number> {
   const row = await one<{ hits: number }>(
-    `INSERT INTO rate_limits(bucket, window_start, hits)
+    `INSERT INTO HRSYSTEM_rate_limits(bucket, window_start, hits)
      VALUES (
        $1,
        to_timestamp(floor(extract(epoch from now()) / $2::double precision) * $2::double precision),
        1
      )
-     ON CONFLICT (bucket, window_start) DO UPDATE SET hits = rate_limits.hits + 1
+     ON CONFLICT (bucket, window_start) DO UPDATE SET hits = HRSYSTEM_rate_limits.hits + 1
      RETURNING hits`,
     [bucket, windowSeconds],
   );
@@ -21,6 +21,11 @@ export async function isRateLimited(
   limit: number,
   windowSeconds: number,
 ): Promise<boolean> {
-  const hits = await hitRateLimit(bucket, windowSeconds);
-  return hits > limit;
+  try {
+    const hits = await hitRateLimit(bucket, windowSeconds);
+    return hits > limit;
+  } catch (error) {
+    console.error('Rate limit check failed; allowing request', error);
+    return false;
+  }
 }

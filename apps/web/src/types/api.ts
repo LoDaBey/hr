@@ -656,6 +656,10 @@ export interface HrJobsUpdateResult {
   job_id: string;
 }
 
+export interface HrJobsDeleteResult {
+  job_id: string;
+}
+
 export interface HrJobsQuestionsSetPayload {
   job_id: string;
   questions: Array<Omit<JobQuestion, 'id' | 'job_id'> & { id?: string }>;

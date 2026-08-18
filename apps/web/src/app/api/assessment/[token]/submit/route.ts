@@ -68,13 +68,13 @@ export async function POST(
     const result = await tx(async (client) => {
       for (const row of answers) {
         await client.query(
-          `INSERT INTO assessment_answers (
+          `INSERT INTO HRSYSTEM_assessment_answers (
              candidate_assessment_id, question_id, answer, time_spent_seconds, answered_at
            )
            VALUES ($1, $2, $3::jsonb, $4, now())
            ON CONFLICT (candidate_assessment_id, question_id) DO UPDATE SET
              answer = EXCLUDED.answer,
-             time_spent_seconds = COALESCE(EXCLUDED.time_spent_seconds, assessment_answers.time_spent_seconds),
+             time_spent_seconds = COALESCE(EXCLUDED.time_spent_seconds, HRSYSTEM_assessment_answers.time_spent_seconds),
              answered_at = now()`,
           [
             sitting.sitting_id,
@@ -90,7 +90,7 @@ export async function POST(
         late: boolean;
       }>(
         client,
-        `UPDATE candidate_assessments
+        `UPDATE HRSYSTEM_candidate_assessments
          SET status = 'SUBMITTED',
              submitted_at = now(),
              late = CASE
@@ -108,26 +108,26 @@ export async function POST(
       }
 
       await client.query(
-        `UPDATE access_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL`,
+        `UPDATE HRSYSTEM_access_tokens SET used_at = now() WHERE id = $1 AND used_at IS NULL`,
         [sitting.token_id],
       );
 
       await client.query(
-        `UPDATE applications
-         SET stage = 'TECH_ASSESSMENT_SUBMITTED'::app_stage, updated_at = now()
+        `UPDATE HRSYSTEM_applications
+         SET stage = 'TECH_ASSESSMENT_SUBMITTED'::HRSYSTEM_app_stage, updated_at = now()
          WHERE id = $1`,
         [sitting.application_id],
       );
 
       await client.query(
-        `INSERT INTO recruitment_events (
+        `INSERT INTO HRSYSTEM_recruitment_events (
            application_id, candidate_id, job_id, event_type,
            from_stage, to_stage, actor_type, actor_label, payload
          )
          SELECT a.id, a.candidate_id, a.job_id, 'ASSESSMENT_SUBMITTED',
-                $2::app_stage, 'TECH_ASSESSMENT_SUBMITTED'::app_stage,
+                $2::HRSYSTEM_app_stage, 'TECH_ASSESSMENT_SUBMITTED'::HRSYSTEM_app_stage,
                 'CANDIDATE', $3, $4::jsonb
-         FROM applications a
+         FROM HRSYSTEM_applications a
          WHERE a.id = $1`,
         [
           sitting.application_id,

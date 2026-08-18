@@ -17,7 +17,6 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import {
-  IconAlertTriangle,
   IconBriefcase,
   IconCalendarEvent,
   IconLayoutDashboard,
@@ -49,7 +48,6 @@ const NAV_PRIMARY: NavItem[] = [
   { href: '/hr', label: 'Dashboard', icon: <IconLayoutDashboard size={20} aria-hidden /> },
   { href: '/hr/candidates', label: 'Candidates', icon: <IconUsers size={20} aria-hidden /> },
   { href: '/hr/jobs', label: 'Jobs', icon: <IconBriefcase size={20} aria-hidden /> },
-  { href: '/hr/errors', label: 'Errors', icon: <IconAlertTriangle size={20} aria-hidden /> },
   { href: '/hr/settings', label: 'Settings', icon: <IconSettings size={20} aria-hidden /> },
 ];
 

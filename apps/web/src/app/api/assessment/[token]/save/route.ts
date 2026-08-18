@@ -51,13 +51,13 @@ export async function POST(
     for (const row of answers) {
       try {
         await pool.query(
-          `INSERT INTO assessment_answers (
+          `INSERT INTO HRSYSTEM_assessment_answers (
              candidate_assessment_id, question_id, answer, time_spent_seconds, answered_at
            )
            VALUES ($1, $2, $3::jsonb, $4, now())
            ON CONFLICT (candidate_assessment_id, question_id) DO UPDATE SET
              answer = EXCLUDED.answer,
-             time_spent_seconds = COALESCE(EXCLUDED.time_spent_seconds, assessment_answers.time_spent_seconds),
+             time_spent_seconds = COALESCE(EXCLUDED.time_spent_seconds, HRSYSTEM_assessment_answers.time_spent_seconds),
              answered_at = now()`,
           [
             resolved.data.sitting_id,
