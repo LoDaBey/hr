@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Group, NumberInput, Select, Stack, TextInput, Title } from '@mantine/core';
+import { Button, Group, NumberInput, Select, Stack, Textarea, Title } from '@mantine/core';
 import type { HardDraft, SoftDraft } from '@/types/job-editor';
 import { HARD_OP_OPTIONS, ON_FAIL_OPTIONS } from '@/types/job-editor';
 import { DEFAULT_HARD_FAIL } from '@/lib/labels';
@@ -48,40 +48,70 @@ export function ScreeningRulesSection({
       </Group>
 
       {hardRows.map((row, index) => (
-        <Group key={`hard-${index}`} align="flex-end" wrap="wrap">
-          <Select
-            className="rounded outline-none"
-            label="Field"
-            aria-label={`Must-have field ${index + 1}`}
-            data={fieldOptions}
-            value={row.fieldKey}
-            onChange={(value) => {
-              if (!value) return;
-              const next = [...hardRows];
-              next[index] = { ...row, fieldKey: value };
-              onHardChange(next);
-              onDirty();
-            }}
-          />
-          <Select
-            className="rounded outline-none"
-            label="Condition"
-            aria-label={`Must-have condition ${index + 1}`}
-            data={HARD_OP_OPTIONS}
-            value={row.op}
-            onChange={(value) => {
-              if (!value) return;
-              const next = [...hardRows];
-              next[index] = { ...row, op: value as HardRequirement['op'] };
-              onHardChange(next);
-              onDirty();
-            }}
-          />
+        <Stack key={`hard-${index}`} gap="xs">
+          <Group align="flex-end" wrap="wrap">
+            <Select
+              className="rounded outline-none"
+              label="Field"
+              aria-label={`Must-have field ${index + 1}`}
+              data={fieldOptions}
+              value={row.fieldKey}
+              onChange={(value) => {
+                if (!value) return;
+                const next = [...hardRows];
+                next[index] = { ...row, fieldKey: value };
+                onHardChange(next);
+                onDirty();
+              }}
+            />
+            <Select
+              className="rounded outline-none"
+              label="Condition"
+              aria-label={`Must-have condition ${index + 1}`}
+              data={HARD_OP_OPTIONS}
+              value={row.op}
+              onChange={(value) => {
+                if (!value) return;
+                const next = [...hardRows];
+                next[index] = { ...row, op: value as HardRequirement['op'] };
+                onHardChange(next);
+                onDirty();
+              }}
+            />
+            <Select
+              className="rounded outline-none"
+              label="If not met"
+              aria-label={`Must-have if not met ${index + 1}`}
+              data={ON_FAIL_OPTIONS}
+              value={row.on_fail}
+              onChange={(value) => {
+                if (!value) return;
+                const next = [...hardRows];
+                next[index] = { ...row, on_fail: value as HardRequirement['on_fail'] };
+                onHardChange(next);
+                onDirty();
+              }}
+            />
+            <Button
+              className="cursor-pointer rounded-lg"
+              aria-label={`Remove must-have rule ${index + 1}`}
+              variant="subtle"
+              color="danger"
+              onClick={() => {
+                onHardChange(hardRows.filter((_, i) => i !== index));
+                onDirty();
+              }}
+            >
+              Remove
+            </Button>
+          </Group>
           {row.op !== 'truthy' ? (
-            <TextInput
+            <Textarea
               className="rounded outline-none"
               label="Value"
               aria-label={`Must-have value ${index + 1}`}
+              minRows={3}
+              autosize
               value={row.value}
               onChange={(e) => {
                 const next = [...hardRows];
@@ -91,33 +121,7 @@ export function ScreeningRulesSection({
               }}
             />
           ) : null}
-          <Select
-            className="rounded outline-none"
-            label="If not met"
-            aria-label={`Must-have if not met ${index + 1}`}
-            data={ON_FAIL_OPTIONS}
-            value={row.on_fail}
-            onChange={(value) => {
-              if (!value) return;
-              const next = [...hardRows];
-              next[index] = { ...row, on_fail: value as HardRequirement['on_fail'] };
-              onHardChange(next);
-              onDirty();
-            }}
-          />
-          <Button
-            className="cursor-pointer rounded-lg"
-            aria-label={`Remove must-have rule ${index + 1}`}
-            variant="subtle"
-            color="danger"
-            onClick={() => {
-              onHardChange(hardRows.filter((_, i) => i !== index));
-              onDirty();
-            }}
-          >
-            Remove
-          </Button>
-        </Group>
+        </Stack>
       ))}
 
       <Group justify="space-between" align="center" mt="md">
@@ -157,6 +161,7 @@ export function ScreeningRulesSection({
               onSoftChange(next);
               onDirty();
             }}
+            style={{ flex: 1, minWidth: 220 }}
           />
           <NumberInput
             className="rounded outline-none"

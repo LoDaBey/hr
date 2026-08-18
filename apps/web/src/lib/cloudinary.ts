@@ -1,5 +1,5 @@
 import 'server-only';
-import { createHash, createHmac, randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import type { CloudinarySignatureResult } from '@/types/api';
 
 const DELIVERY_TTL_SECONDS = 600;
@@ -49,18 +49,39 @@ export function signUpload(kind: 'cv' | 'video'): CloudinarySignatureResult {
   };
 }
 
+/**
+ * Time-limited download URL for authenticated/private assets.
+ * Uses Cloudinary's `/download` API (same signing as uploads), not the
+ * transformation `s--sig--` path — authenticated raw files require this.
+ */
 export function signedDeliveryUrl(
   publicId: string,
   resourceType: string,
   format: string,
 ): { url: string; expires_in: number } {
   const cloudName = requireCloudinaryEnv('CLOUDINARY_CLOUD_NAME');
+  const apiKey = requireCloudinaryEnv('CLOUDINARY_API_KEY');
   const secret = requireCloudinaryEnv('CLOUDINARY_API_SECRET');
-  const exp = Math.floor(Date.now() / 1000) + DELIVERY_TTL_SECONDS;
-  const toSign = `exp=${exp}~acl=/${resourceType}/authenticated/${publicId}.${format}`;
-  const sig = createHmac('sha256', Buffer.from(secret)).update(toSign).digest('base64url');
-  const url =
-    `https://res.cloudinary.com/${cloudName}/${resourceType}` +
-    `/authenticated/s--${sig}--/${publicId}.${format}?_a=${exp}`;
+  const timestamp = Math.floor(Date.now() / 1000);
+  const expiresAt = timestamp + DELIVERY_TTL_SECONDS;
+  const extension = (format || '').replace(/^\./, '').toLowerCase();
+  const params: Record<string, string | number> = {
+    timestamp,
+    public_id: publicId,
+    type: 'authenticated',
+    expires_at: expiresAt,
+  };
+  if (extension) params.format = extension;
+
+  const signature = signUploadParams(params, secret);
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    query.set(key, String(value));
+  }
+  query.set('signature', signature);
+  query.set('api_key', apiKey);
+
+  const type = resourceType === 'video' ? 'video' : resourceType === 'image' ? 'image' : 'raw';
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/${type}/download?${query.toString()}`;
   return { url, expires_in: DELIVERY_TTL_SECONDS };
 }

@@ -1,8 +1,9 @@
 'use client';
 
-import { NumberInput, TextInput } from '@mantine/core';
+import { NumberInput, Select, SimpleGrid, TextInput } from '@mantine/core';
 import type { UseFormReturnType } from '@mantine/form';
 import type { PublicJobDetail } from '@/types/api';
+import { MILITARY_STATUS_OPTIONS } from '@/types/job-editor';
 import type { ApplyFormValues } from './form-values';
 
 export type PersonalValues = {
@@ -16,6 +17,8 @@ export type PersonalValues = {
   marital_status: string;
 };
 
+const MILITARY_OPTIONS = MILITARY_STATUS_OPTIONS.map((value) => ({ value, label: value }));
+
 export function PersonalFields({
   form,
   job,
@@ -24,7 +27,7 @@ export function PersonalFields({
   job: PublicJobDetail;
 }) {
   return (
-    <>
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
       <TextInput
         className="rounded outline-none"
         label="Full name"
@@ -71,10 +74,12 @@ export function PersonalFields({
         />
       ) : null}
       {job.ask_military_status ? (
-        <TextInput
+        <Select
           className="rounded outline-none"
           label="Military status"
           aria-label="Military status"
+          data={MILITARY_OPTIONS}
+          required
           {...form.getInputProps('candidate.military_status')}
         />
       ) : null}
@@ -86,6 +91,6 @@ export function PersonalFields({
           {...form.getInputProps('candidate.marital_status')}
         />
       ) : null}
-    </>
+    </SimpleGrid>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { NumberInput, Select, TextInput } from '@mantine/core';
+import { NumberInput, Select, SimpleGrid, TextInput } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import type { UseFormReturnType } from '@mantine/form';
 import { CANDIDATE_EMPLOYMENT_STATUS, selectOptions } from '@/lib/labels';
@@ -24,7 +24,7 @@ export function ProfessionalFields({
   form: UseFormReturnType<ApplyFormValues>;
 }) {
   return (
-    <>
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
       <Select
         className="rounded outline-none"
         label="Employment status"
@@ -77,6 +77,6 @@ export function ProfessionalFields({
         clearable
         {...form.getInputProps('professional.available_from')}
       />
-    </>
+    </SimpleGrid>
   );
 }
