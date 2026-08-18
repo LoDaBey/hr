@@ -17,7 +17,8 @@ import { AssessmentReview } from '@/components/hr/AssessmentReview';
 import { DecisionBar } from '@/components/hr/DecisionBar';
 import { TechTestInviteBar } from '@/components/hr/TechTestInviteBar';
 import { TechTestReview } from '@/components/hr/TechTestReview';
-import { toastError, toastSuccess } from '@/lib/toast';
+import { useRouter } from 'next/navigation';
+import { CandidateRowActions } from '../../components/CandidateRowActions';
 import { FinalDecisionBar } from './FinalDecisionBar';
 import { InterviewCompleteForm } from './InterviewCompleteForm';
 import { ScheduleForm } from '@/app/hr/interviews/components/ScheduleForm';
@@ -36,6 +37,7 @@ import {
   stageLabel,
 } from '@/lib/labels';
 import { useHrCandidate } from '@/hooks/useHrCandidate';
+import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
 import type { CommStatus, Recommendation, Stage, Status } from '@/types/domain';
 
@@ -82,6 +84,7 @@ function Section({
 }
 
 export function CandidateDetailView({ applicationId }: { applicationId: string }) {
+  const router = useRouter();
   const { data, error, isLoading, mutate } = useHrCandidate(applicationId);
 
   async function openCv() {
@@ -170,9 +173,16 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
                 {job.title} · applied {datetime(application.created_at)}
               </Text>
             </div>
-            <Badge variant="outline" color="ink">
-              {labelOf(STATUS, application.status as Status)}
-            </Badge>
+            <Group gap="sm" align="flex-start">
+              <Badge variant="outline" color="ink">
+                {labelOf(STATUS, application.status as Status)}
+              </Badge>
+              <CandidateRowActions
+                applicationId={application.id}
+                fullName={candidate.full_name}
+                onDeleted={() => router.push('/hr/candidates')}
+              />
+            </Group>
           </Group>
 
           <Stack gap="xs">
