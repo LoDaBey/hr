@@ -9,6 +9,7 @@ import { runCvParseAndScreening } from '@/lib/pipeline/screening';
 import { applicationSubmitSchema } from '@/lib/schemas/application';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 class SubmitError extends Error {
   constructor(

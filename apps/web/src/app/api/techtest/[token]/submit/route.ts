@@ -8,6 +8,7 @@ import { evaluateTechTest } from '@/lib/pipeline/grading';
 import type { TechTestSubmitResult } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const eventSchema = z.object({
   event_id: z.string().min(1),
