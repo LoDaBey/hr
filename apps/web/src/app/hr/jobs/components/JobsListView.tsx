@@ -97,7 +97,7 @@ export function JobsListView() {
           noRecordsText="No jobs yet — create one to publish a share link"
         />
       )}
-      {!isLoading && data?.HRSYSTEM_jobs.length === 0 ? (
+      {!isLoading && data?.jobs.length === 0 ? (
         <Text c="dimmed">Create a job, add questions, then publish to get a candidate link.</Text>
       ) : null}
     </Stack>

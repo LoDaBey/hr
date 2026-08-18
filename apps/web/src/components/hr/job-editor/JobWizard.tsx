@@ -805,7 +805,7 @@ export function JobWizard({
               )}
               {publicUrl ? (
                 <Text size="sm" c="dimmed">
-                  This job is live. Share the link above with HRSYSTEM_candidates.
+                  This job is live. Share the link above with candidates.
                 </Text>
               ) : null}
             </EditorSection>
