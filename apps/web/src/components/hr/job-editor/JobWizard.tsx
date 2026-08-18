@@ -35,6 +35,7 @@ import type {
   QuestionDraft,
   SoftDraft,
 } from '@/types/job-editor';
+import { parseScreeningWeights } from '@/types/job-editor';
 import {
   AssessmentSection,
   assessmentDraftFromDetail,
@@ -47,6 +48,7 @@ import { JobStatusBadge } from './JobStatusBadge';
 import { JobWizardReview } from './JobWizardReview';
 import { QuestionsSection } from './QuestionsSection';
 import { ScreeningRulesSection } from './ScreeningRulesSection';
+import { ScreeningScoreSection } from './ScreeningScoreSection';
 import { ShareLinkPanel } from './ShareLinkPanel';
 
 const YEARS_EXPERIENCE_FIELD = {
@@ -68,14 +70,21 @@ const STEPS = [
     description: 'How applicants are scored automatically. You always make the final call.',
   },
   {
-    label: 'Assessments',
-    description: "Optional. Sent after you shortlist someone. Skip if you don't need them.",
+    label: 'Technical assessment',
+    description: 'Optional written or coding test sent after you shortlist. Skip if you do not need it.',
+  },
+  {
+    label: 'Recorded tech test',
+    description: 'Optional recorded session after the technical assessment. Skip if you do not need it.',
   },
   {
     label: 'Review',
     description: 'Check it over, then publish to get your shareable link.',
   },
 ] as const;
+
+const LAST_STEP = STEPS.length - 1;
+const SKIPPABLE_STEPS = new Set([2, 3, 4]);
 
 function draftId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -243,19 +252,20 @@ export function JobWizard({
   /** After publish — stay on review with the share link; do not navigate away. */
   onPublished?: (jobId: string) => void;
 }) {
-  const guided = mode === 'create';
   const job = initial?.job;
   const initialParsed = extractDemographicAndHard(job?.hard_requirements);
 
   const [active, setActive] = useState(() =>
-    Math.min(STEPS.length - 1, Math.max(0, initialStep)),
+    Math.min(LAST_STEP, Math.max(0, initialStep)),
   );
   const [furthest, setFurthest] = useState(() =>
-    guided ? Math.min(STEPS.length - 1, Math.max(0, initialStep)) : STEPS.length - 1,
+    mode === 'create' ? Math.min(LAST_STEP, Math.max(0, initialStep)) : LAST_STEP,
   );
   const [jobId, setJobId] = useState<string | null>(job?.id ?? null);
   const [jobSlug, setJobSlug] = useState<string | null>(job?.slug ?? null);
   const [jobStatus, setJobStatus] = useState(job?.status ?? null);
+  const isLive = jobStatus === 'OPEN';
+  const wizardNav = !isLive;
 
   const [hardRows, setHardRows] = useState<HardDraft[]>(() => initialParsed.hardRows);
   const [softRows, setSoftRows] = useState<SoftDraft[]>(() => softFromJob(job?.soft_requirements));
@@ -298,6 +308,7 @@ export function JobWizard({
       vacancies: job?.vacancies ?? 1,
       application_deadline: job?.application_deadline ?? null,
       shortlist_threshold: job?.shortlist_threshold ?? 70,
+      screening_weights: parseScreeningWeights(job?.screening_weights),
       cv_required: job?.cv_required ?? true,
       ask_age: job?.ask_age ?? false,
       ask_military_status: job?.ask_military_status ?? false,
@@ -404,6 +415,7 @@ export function JobWizard({
       vacancies: Math.max(1, Number(values.vacancies) || 1),
       application_deadline: values.application_deadline,
       shortlist_threshold: Number(values.shortlist_threshold) || 70,
+      screening_weights: values.screening_weights,
       cv_required: values.cv_required,
       ask_age: values.ask_age,
       ask_military_status: values.ask_military_status,
@@ -552,9 +564,9 @@ export function JobWizard({
     setFormError(null);
     try {
       const id = await persistAll();
-      const nextStep = Math.min(active + 1, STEPS.length - 1);
+      const nextStep = Math.min(active + 1, LAST_STEP);
       goToStep(nextStep);
-      if (guided) {
+      if (wizardNav) {
         onDraftProgress?.(id, nextStep);
       }
       toastSuccess('Progress saved');
@@ -568,14 +580,14 @@ export function JobWizard({
   }
 
   async function handleSkip() {
-    if (active !== 2 && active !== 3) return;
+    if (!SKIPPABLE_STEPS.has(active)) return;
     setSaving(true);
     setFormError(null);
     try {
       const id = await persistAll();
-      const nextStep = Math.min(active + 1, STEPS.length - 1);
+      const nextStep = Math.min(active + 1, LAST_STEP);
       goToStep(nextStep);
-      if (guided) {
+      if (wizardNav) {
         onDraftProgress?.(id, nextStep);
       }
     } catch (error) {
@@ -624,10 +636,10 @@ export function JobWizard({
       setDirty(false);
       toastSuccess('Job published');
       onPublished?.(id);
-      if (!guided) {
+      if (mode === 'edit') {
         onSaved(id);
       } else {
-        onDraftProgress?.(id, 4);
+        onDraftProgress?.(id, LAST_STEP);
       }
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Publish failed';
@@ -639,7 +651,7 @@ export function JobWizard({
   }
 
   function onStepperClick(step: number) {
-    if (!guided) {
+    if (mode === 'edit') {
       goToStep(step);
       return;
     }
@@ -649,6 +661,7 @@ export function JobWizard({
   }
 
   const slideOffset = 24 * stepDirection;
+  const niceToHaveTotal = softRows.reduce((sum, row) => sum + (Number(row.weight) || 0), 0);
 
   return (
     <Stack gap={density.sectionGap}>
@@ -658,13 +671,7 @@ export function JobWizard({
         </Group>
       ) : null}
 
-      {publicUrl && (!guided || active === 4) ? <ShareLinkPanel url={publicUrl} /> : null}
-
-      {dirty ? (
-        <Alert color="warning" title="Unsaved changes">
-          You have unsaved edits on this job.
-        </Alert>
-      ) : null}
+      {publicUrl ? <ShareLinkPanel url={publicUrl} /> : null}
 
       {formError ? (
         <Alert color="danger" title="Could not continue">
@@ -675,22 +682,23 @@ export function JobWizard({
       <Stepper
         active={active}
         onStepClick={onStepperClick}
-        allowNextStepsSelect={!guided}
+        allowNextStepsSelect={mode === 'edit'}
         color="accent"
       >
         {STEPS.map((step, index) => (
           <Stepper.Step
             key={step.label}
             label={step.label}
-            description={guided && index > furthest ? undefined : undefined}
-            allowStepSelect={!guided || index <= furthest}
+            allowStepSelect={mode === 'edit' || index <= furthest}
           />
         ))}
       </Stepper>
 
-      <Text size="sm" c="dimmed">
-        {STEPS[active]?.description}
-      </Text>
+      {isLive && active === LAST_STEP ? null : (
+        <Text size="sm" c="dimmed">
+          {STEPS[active]?.description}
+        </Text>
+      )}
 
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
@@ -707,7 +715,7 @@ export function JobWizard({
                 demographic={demographic}
                 onDemographicChange={setDemographic}
                 onDirty={markDirty}
-                parts={{ role: true, application: false, advanced: false }}
+                parts={{ role: true, application: false }}
               />
             </EditorSection>
           ) : null}
@@ -733,7 +741,7 @@ export function JobWizard({
                   demographic={demographic}
                   onDemographicChange={setDemographic}
                   onDirty={markDirty}
-                  parts={{ role: false, application: true, advanced: false }}
+                  parts={{ role: false, application: true }}
                 />
               </EditorSection>
             </Stack>
@@ -742,6 +750,11 @@ export function JobWizard({
           {active === 2 ? (
             questionsReady ? (
               <EditorSection title="Screening rules" description={STEPS[2].description}>
+                <ScreeningScoreSection
+                  form={form}
+                  niceToHaveTotal={niceToHaveTotal}
+                  onDirty={markDirty}
+                />
                 <ScreeningRulesSection
                   hardRows={hardRows}
                   softRows={softRows}
@@ -749,13 +762,6 @@ export function JobWizard({
                   onHardChange={setHardRows}
                   onSoftChange={setSoftRows}
                   onDirty={markDirty}
-                />
-                <BasicsSection
-                  form={form}
-                  demographic={demographic}
-                  onDemographicChange={setDemographic}
-                  onDirty={markDirty}
-                  parts={{ role: false, application: false, advanced: true }}
                 />
               </EditorSection>
             ) : (
@@ -767,55 +773,58 @@ export function JobWizard({
           ) : null}
 
           {active === 3 ? (
-            <Stack gap={density.sectionGap}>
-              <EditorSection title="Technical assessment" description={STEPS[3].description}>
-                <AssessmentSection
-                  kind="ASSESSMENT"
-                  value={assessment}
-                  onChange={setAssessment}
-                  onDirty={markDirty}
-                />
-              </EditorSection>
-              <EditorSection
-                title="Recorded tech test"
-                description="Optional. Same paper builder — used after a technical shortlist."
-              >
-                <AssessmentSection
-                  kind="TECH_TEST"
-                  value={techTest}
-                  onChange={setTechTest}
-                  onDirty={markDirty}
-                />
-              </EditorSection>
-            </Stack>
+            <EditorSection title="Technical assessment" description={STEPS[3].description}>
+              <AssessmentSection
+                kind="ASSESSMENT"
+                value={assessment}
+                onChange={setAssessment}
+                onDirty={markDirty}
+              />
+            </EditorSection>
           ) : null}
 
           {active === 4 ? (
-            <EditorSection title="Review" description={STEPS[4].description}>
-              {publicUrl ? null : (
-                <JobWizardReview
-                  values={form.values}
-                  questions={questions}
-                  hardRows={hardRows}
-                  softRows={softRows}
-                  assessment={assessment}
-                  techTest={techTest}
-                  onEditStep={(step) => goToStep(step)}
-                />
-              )}
-              {publicUrl ? (
-                <Text size="sm" c="dimmed">
-                  This job is live. Share the link above with candidates.
-                </Text>
-              ) : null}
+            <EditorSection title="Recorded tech test" description={STEPS[4].description}>
+              <AssessmentSection
+                kind="TECH_TEST"
+                value={techTest}
+                onChange={setTechTest}
+                onDirty={markDirty}
+              />
             </EditorSection>
+          ) : null}
+
+          {active === LAST_STEP && !isLive ? (
+            <EditorSection title="Review" description={STEPS[LAST_STEP].description}>
+              <JobWizardReview
+                values={form.values}
+                questions={questions}
+                hardRows={hardRows}
+                softRows={softRows}
+                assessment={assessment}
+                techTest={techTest}
+                onEditStep={(step) => goToStep(step)}
+              />
+            </EditorSection>
+          ) : null}
+
+          {active === LAST_STEP && isLive ? (
+            <JobWizardReview
+              values={form.values}
+              questions={questions}
+              hardRows={hardRows}
+              softRows={softRows}
+              assessment={assessment}
+              techTest={techTest}
+              onEditStep={(step) => goToStep(step)}
+            />
           ) : null}
         </motion.div>
       </AnimatePresence>
 
       <Group justify="space-between" align="center" wrap="wrap" pt="sm">
         <Group gap="sm">
-          {guided && active > 0 ? (
+          {active > 0 ? (
             <MotionButton
               className="cursor-pointer rounded-lg"
               aria-label="Back to previous step"
@@ -829,7 +838,7 @@ export function JobWizard({
         </Group>
 
         <Group gap="sm">
-          {guided && (active === 2 || active === 3) ? (
+          {wizardNav && SKIPPABLE_STEPS.has(active) ? (
             <MotionButton
               className="cursor-pointer rounded-lg"
               aria-label="Skip this optional step"
@@ -841,7 +850,7 @@ export function JobWizard({
             </MotionButton>
           ) : null}
 
-          {guided && active < 4 ? (
+          {wizardNav && active < LAST_STEP ? (
             <MotionButton
               className="cursor-pointer rounded-lg"
               aria-label="Save and continue to next step"
@@ -857,7 +866,7 @@ export function JobWizard({
             </MotionButton>
           ) : null}
 
-          {!guided ? (
+          {(wizardNav && active === LAST_STEP && !isLive) || (isLive && dirty) ? (
             <MotionButton
               className="cursor-pointer rounded-lg"
               aria-label="Save job"
@@ -869,7 +878,7 @@ export function JobWizard({
             </MotionButton>
           ) : null}
 
-          {active === 4 && jobStatus !== 'OPEN' ? (
+          {active === LAST_STEP && !isLive ? (
             <MotionButton
               className="cursor-pointer rounded-lg"
               aria-label="Publish job"

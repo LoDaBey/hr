@@ -38,6 +38,37 @@ export type SoftDraft = {
   weight: number;
 };
 
+export type ScreeningWeights = {
+  skills: number;
+  experience: number;
+  answers: number;
+  education: number;
+};
+
+export const DEFAULT_SCREENING_WEIGHTS: ScreeningWeights = {
+  skills: 40,
+  experience: 30,
+  answers: 20,
+  education: 10,
+};
+
+export function parseScreeningWeights(value: unknown): ScreeningWeights {
+  const record =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  function num(key: keyof ScreeningWeights): number {
+    const n = Number(record[key]);
+    return Number.isFinite(n) ? n : DEFAULT_SCREENING_WEIGHTS[key];
+  }
+  return {
+    skills: num('skills'),
+    experience: num('experience'),
+    answers: num('answers'),
+    education: num('education'),
+  };
+}
+
 export type JobEditorBasicsValues = {
   title: string;
   department: string;
@@ -54,6 +85,7 @@ export type JobEditorBasicsValues = {
   vacancies: number | string;
   application_deadline: string | null;
   shortlist_threshold: number | string;
+  screening_weights: ScreeningWeights;
   cv_required: boolean;
   ask_age: boolean;
   ask_military_status: boolean;
@@ -64,7 +96,6 @@ export type JobEditorBasicsValues = {
 export type BasicsSectionParts = {
   role?: boolean;
   application?: boolean;
-  advanced?: boolean;
 };
 
 export type DemographicRuleState = {

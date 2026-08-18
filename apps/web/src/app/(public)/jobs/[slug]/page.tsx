@@ -1,4 +1,4 @@
-import { Container } from '@mantine/core';
+import { PublicPageShell } from '../../components/PublicPageShell';
 import { notFound } from 'next/navigation';
 import { getPublicJob } from '@/lib/repos/jobs';
 import { ClosedJobNotice } from './components/ClosedJobNotice';
@@ -17,8 +17,8 @@ export default async function JobDetailPage({
   if (!result.ok) return <ClosedJobNotice />;
 
   return (
-    <Container py="xl">
+    <PublicPageShell>
       <JobDetailView job={result.job} />
-    </Container>
+    </PublicPageShell>
   );
 }

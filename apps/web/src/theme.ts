@@ -44,6 +44,7 @@ export const density = {
   shellResizeHandleWidth: 4,
   shellLoginCardWidth: 420,
   contentMaxWidth: 720,
+  publicContentMaxWidth: 1120,
   sectionGap: 'lg' as const,
   stickyBarClearance: 80,
   motion: {

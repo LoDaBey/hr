@@ -166,6 +166,13 @@ export function JobWizardReview({
 
       <ReviewBlock title="Screening rules" onEdit={() => onEditStep(2)}>
         <Text size="sm" fw={600}>
+          Overall score
+        </Text>
+        <Text size="sm">
+          Skills {values.screening_weights.skills} · Experience {values.screening_weights.experience}{' '}
+          · Answers {values.screening_weights.answers} · Education {values.screening_weights.education}
+        </Text>
+        <Text size="sm" fw={600} mt="xs">
           Must-haves
         </Text>
         {hardRows.length === 0 ? (
@@ -198,18 +205,31 @@ export function JobWizardReview({
         </Text>
       </ReviewBlock>
 
-      <ReviewBlock title="Assessments" onEdit={() => onEditStep(3)}>
+      <ReviewBlock title="Technical assessment" onEdit={() => onEditStep(3)}>
         <Text size="sm">
-          Technical assessment: {assessmentSummary(assessment)}
+          {assessmentSummary(assessment)}
           {assessment.title.trim() ? ` (${assessment.title.trim()})` : ''}
-        </Text>
-        <Text size="sm">
-          Recorded tech test: {assessmentSummary(techTest)}
-          {techTest.title.trim() ? ` (${techTest.title.trim()})` : ''}
         </Text>
         {assessment.questions.length > 0 ? (
           <Stack gap={4} mt="xs">
             {assessment.questions.map((q) => (
+              <Text key={q.draftId} size="sm" c="dimmed">
+                {labelOf(ASSESSMENT_QUESTION_TYPE, q.type)} —{' '}
+                {q.prompt.trim().slice(0, 80) || 'Untitled'}
+              </Text>
+            ))}
+          </Stack>
+        ) : null}
+      </ReviewBlock>
+
+      <ReviewBlock title="Recorded tech test" onEdit={() => onEditStep(4)}>
+        <Text size="sm">
+          {assessmentSummary(techTest)}
+          {techTest.title.trim() ? ` (${techTest.title.trim()})` : ''}
+        </Text>
+        {techTest.questions.length > 0 ? (
+          <Stack gap={4} mt="xs">
+            {techTest.questions.map((q) => (
               <Text key={q.draftId} size="sm" c="dimmed">
                 {labelOf(ASSESSMENT_QUESTION_TYPE, q.type)} —{' '}
                 {q.prompt.trim().slice(0, 80) || 'Untitled'}

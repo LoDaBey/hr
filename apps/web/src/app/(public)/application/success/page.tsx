@@ -1,30 +1,22 @@
-import { Button, Container, Paper, Stack } from '@mantine/core';
-import { density, palette } from '@/theme';
+import { Paper } from '@mantine/core';
+import { PublicPageShell } from '../../components/PublicPageShell';
+import { palette } from '@/theme';
 import { SuccessMessage } from './components/SuccessMessage';
 
 export default function ApplicationSuccessPage() {
   return (
-    <Container size={density.contentMaxWidth} py="xl">
+    <PublicPageShell wide>
       <Paper
-        withBorder
-        p="xl"
-        radius={density.defaultRadius}
-        style={{ borderColor: `${palette.ink}14` }}
+        p={{ base: 'md', sm: 'xl' }}
+        radius="lg"
+        shadow="md"
+        style={{
+          background: '#FFFFFF',
+          border: `1px solid ${palette.ink}12`,
+        }}
       >
-        <Stack gap="lg">
-          <SuccessMessage />
-          <Button
-            component="a"
-            href="/jobs"
-            className="cursor-pointer rounded-lg"
-            aria-label="Back to open roles"
-            variant="default"
-            w="fit-content"
-          >
-            Back to open roles
-          </Button>
-        </Stack>
+        <SuccessMessage />
       </Paper>
-    </Container>
+    </PublicPageShell>
   );
 }

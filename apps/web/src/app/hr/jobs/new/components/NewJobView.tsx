@@ -45,7 +45,7 @@ function NewJobWizardInner() {
         router.refresh();
       }}
       onPublished={(id) => {
-        router.replace(`/hr/jobs/new?jobId=${id}&step=4`);
+        router.replace(`/hr/jobs/new?jobId=${id}&step=5`);
       }}
     />
   );
