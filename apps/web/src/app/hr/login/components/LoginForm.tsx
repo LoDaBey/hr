@@ -75,7 +75,9 @@ export function LoginForm() {
             >
               <form onSubmit={form.onSubmit(handleSubmit)}>
                 <Stack gap="md">
-                  <Title order={1}>HR sign in</Title>
+                  <Title order={1} ta="center">
+                    HR Portal
+                  </Title>
                   <TextInput
                     className="rounded outline-none"
                     label="Email"

@@ -18,7 +18,7 @@ export async function POST(
   try {
     const { communicationId } = await context.params;
     const row = await one<Communication>(
-      `UPDATE communications
+      `UPDATE HRSYSTEM_communications
        SET status = 'PENDING',
            attempts = 0,
            last_error = NULL

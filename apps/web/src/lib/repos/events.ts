@@ -4,7 +4,7 @@ import type { NewRecruitmentEvent, RecruitmentEvent } from '@/types/domain';
 
 export async function appendEvent(input: NewRecruitmentEvent): Promise<RecruitmentEvent> {
   const row = await one<RecruitmentEvent>(
-    `INSERT INTO recruitment_events (
+    `INSERT INTO HRSYSTEM_recruitment_events (
        application_id, candidate_id, job_id, event_type,
        from_stage, to_stage, actor_type, actor_id, actor_label, payload
      )
@@ -31,7 +31,7 @@ export async function appendEvent(input: NewRecruitmentEvent): Promise<Recruitme
 
 export async function listEventsByApplication(applicationId: string): Promise<RecruitmentEvent[]> {
   return query<RecruitmentEvent>(
-    `SELECT * FROM recruitment_events
+    `SELECT * FROM HRSYSTEM_recruitment_events
      WHERE application_id = $1
      ORDER BY created_at ASC, id ASC`,
     [applicationId],

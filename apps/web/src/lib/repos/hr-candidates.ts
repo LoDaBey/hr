@@ -45,11 +45,11 @@ export async function listHrCandidates(
             j.title AS job_title, a.stage, a.status, a.screening_score, a.assessment_score,
             a.techtest_score, a.years_experience, a.created_at, sr.recommendation,
             count(*) OVER() AS total
-     FROM applications a
-     JOIN candidates c ON c.id = a.candidate_id
-     JOIN jobs j ON j.id = a.job_id
+     FROM HRSYSTEM_applications a
+     JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+     JOIN HRSYSTEM_jobs j ON j.id = a.job_id
      LEFT JOIN LATERAL (
-       SELECT recommendation FROM screening_results
+       SELECT recommendation FROM HRSYSTEM_screening_results
        WHERE application_id = a.id ORDER BY created_at DESC LIMIT 1
      ) sr ON true
      WHERE ($1::uuid IS NULL OR a.job_id = $1)
@@ -125,7 +125,7 @@ export async function getHrCandidateDetail(
   applicationId: string,
 ): Promise<HrCandidatesGetResult | null> {
   const application = await one<Application>(
-    `SELECT * FROM applications WHERE id = $1`,
+    `SELECT * FROM HRSYSTEM_applications WHERE id = $1`,
     [applicationId],
   );
   if (!application) return null;
@@ -144,21 +144,21 @@ export async function getHrCandidateDetail(
     assessmentConfigured,
     techtestConfigured,
   ] = await Promise.all([
-    one<Candidate>(`SELECT * FROM candidates WHERE id = $1`, [application.candidate_id]),
-    one<Job>(`SELECT * FROM jobs WHERE id = $1`, [application.job_id]),
+    one<Candidate>(`SELECT * FROM HRSYSTEM_candidates WHERE id = $1`, [application.candidate_id]),
+    one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [application.job_id]),
     query<AnswerRow>(
       `SELECT aa.question_key,
               COALESCE(jq.label, aa.question_key) AS label,
               aa.answer
-       FROM application_answers aa
-       LEFT JOIN job_questions jq ON jq.id = aa.question_id
+       FROM HRSYSTEM_application_answers aa
+       LEFT JOIN HRSYSTEM_job_questions jq ON jq.id = aa.question_id
        WHERE aa.application_id = $1
        ORDER BY jq.order_index NULLS LAST, aa.question_key`,
       [applicationId],
     ),
     one<CvRow>(
       `SELECT public_id, resource_type, format, parse_status, parsed, original_name
-       FROM documents
+       FROM HRSYSTEM_documents
        WHERE application_id = $1 AND doc_type = 'CV'
        ORDER BY created_at DESC
        LIMIT 1`,
@@ -167,7 +167,7 @@ export async function getHrCandidateDetail(
     one<ScreeningRow>(
       `SELECT score, recommendation, confidence, strengths, weaknesses,
               missing_requirements, reasoning_summary, hr_decision
-       FROM screening_results
+       FROM HRSYSTEM_screening_results
        WHERE application_id = $1
        ORDER BY created_at DESC
        LIMIT 1`,
@@ -176,7 +176,7 @@ export async function getHrCandidateDetail(
     one<AssessmentSittingRow>(
       `SELECT id, status, invite_deadline, duration_minutes,
               started_at, expires_at, submitted_at, late, ai_score, ai_max_score, assessment_id
-       FROM candidate_assessments
+       FROM HRSYSTEM_candidate_assessments
        WHERE application_id = $1
          AND kind = 'ASSESSMENT'
          AND status <> 'CANCELLED'
@@ -188,7 +188,7 @@ export async function getHrCandidateDetail(
       `SELECT id, status, invite_deadline, duration_minutes,
               started_at, expires_at, submitted_at, late, ai_score, ai_max_score,
               assessment_id, recording_status
-       FROM candidate_assessments
+       FROM HRSYSTEM_candidate_assessments
        WHERE application_id = $1
          AND kind = 'TECH_TEST'
          AND status <> 'CANCELLED'
@@ -197,27 +197,27 @@ export async function getHrCandidateDetail(
       [applicationId],
     ),
     query<Interview>(
-      `SELECT * FROM interviews WHERE application_id = $1 ORDER BY scheduled_at`,
+      `SELECT * FROM HRSYSTEM_interviews WHERE application_id = $1 ORDER BY scheduled_at`,
       [applicationId],
     ),
     query<Communication>(
-      `SELECT * FROM communications WHERE application_id = $1 ORDER BY created_at DESC`,
+      `SELECT * FROM HRSYSTEM_communications WHERE application_id = $1 ORDER BY created_at DESC`,
       [applicationId],
     ),
     query<RecruitmentEvent>(
-      `SELECT * FROM recruitment_events
+      `SELECT * FROM HRSYSTEM_recruitment_events
        WHERE application_id = $1
        ORDER BY created_at ASC, id ASC`,
       [applicationId],
     ),
     one<{ id: string }>(
-      `SELECT id FROM assessments
+      `SELECT id FROM HRSYSTEM_assessments
        WHERE job_id = $1 AND kind = 'ASSESSMENT' AND is_active = true
        LIMIT 1`,
       [application.job_id],
     ),
     one<{ id: string }>(
-      `SELECT id FROM assessments
+      `SELECT id FROM HRSYSTEM_assessments
        WHERE job_id = $1 AND kind = 'TECH_TEST' AND is_active = true
        LIMIT 1`,
       [application.job_id],
@@ -261,13 +261,13 @@ export async function getHrCandidateDetail(
           max_score: number;
         }>(
           `SELECT id, order_index, type, prompt, options, language, max_score
-           FROM assessment_questions
+           FROM HRSYSTEM_assessment_questions
            WHERE assessment_id = $1
            ORDER BY order_index ASC, id ASC`,
           [assessment_id],
         ),
         query<{ question_id: string; answer: unknown }>(
-          `SELECT question_id, answer FROM assessment_answers WHERE candidate_assessment_id = $1`,
+          `SELECT question_id, answer FROM HRSYSTEM_assessment_answers WHERE candidate_assessment_id = $1`,
           [sitting.id],
         ),
         query<{
@@ -283,7 +283,7 @@ export async function getHrCandidateDetail(
         }>(
           `SELECT question_id, is_overall, score, max_score,
                   correct_concepts, missing_concepts, technical_errors, feedback, confidence
-           FROM assessment_evaluations
+           FROM HRSYSTEM_assessment_evaluations
            WHERE candidate_assessment_id = $1`,
           [sitting.id],
         ),
@@ -385,13 +385,13 @@ export async function getHrCandidateDetail(
             max_score: number;
           }>(
             `SELECT id, order_index, type, prompt, options, language, max_score
-             FROM assessment_questions
+             FROM HRSYSTEM_assessment_questions
              WHERE assessment_id = $1
              ORDER BY order_index ASC, id ASC`,
             [assessment_id],
           ),
           query<{ question_id: string; answer: unknown }>(
-            `SELECT question_id, answer FROM assessment_answers WHERE candidate_assessment_id = $1`,
+            `SELECT question_id, answer FROM HRSYSTEM_assessment_answers WHERE candidate_assessment_id = $1`,
             [sitting.id],
           ),
           query<{
@@ -409,7 +409,7 @@ export async function getHrCandidateDetail(
             `SELECT question_id, is_overall, score, max_score,
                     correct_concepts, missing_concepts, technical_errors, feedback, confidence,
                     raw_response
-             FROM assessment_evaluations
+             FROM HRSYSTEM_assessment_evaluations
              WHERE candidate_assessment_id = $1`,
             [sitting.id],
           ),
@@ -421,7 +421,7 @@ export async function getHrCandidateDetail(
             metadata: unknown;
           }>(
             `SELECT id, event, severity, occurred_at, metadata
-             FROM proctoring_events
+             FROM HRSYSTEM_proctoring_events
              WHERE candidate_assessment_id = $1
              ORDER BY occurred_at ASC, id ASC`,
             [sitting.id],
@@ -434,7 +434,7 @@ export async function getHrCandidateDetail(
             ended_at: string | null;
           }>(
             `SELECT public_id, format, duration_seconds, started_at, ended_at
-             FROM recordings
+             FROM HRSYSTEM_recordings
              WHERE candidate_assessment_id = $1
              ORDER BY part_no DESC
              LIMIT 1`,

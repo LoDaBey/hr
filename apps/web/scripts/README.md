@@ -1,7 +1,11 @@
 # Database bootstrap
 
-`schema.sql` is the single source of truth for a fresh database. All incremental
-migrations are already folded into it — apply this file once and you are done.
+`schema.sql` is the single source of truth for the HR tables. Every table, index,
+enum, and helper function is prefixed `HRSYSTEM_` so it can live in the same Postgres
+database as the existing production schema in `scripts/production-DB/` without colliding
+with `users`, `attendance`, and the rest.
+
+Apply this file once. It is idempotent: safe to re-run.
 
 Run these from `apps/web/` (or adjust the `-f` path).
 
@@ -37,13 +41,13 @@ psql "postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require" -f scripts/schem
 
 ```sql
 SELECT count(*) FROM information_schema.tables
-WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
--- expect 24
+WHERE table_schema = 'public' AND table_name LIKE 'HRSYSTEM_%';
+-- expect 24 HR tables (production tables are left untouched)
 
-SELECT count(*) FROM email_templates;
+SELECT count(*) FROM HRSYSTEM_email_templates;
 -- expect 11
 
-SELECT count(*) FROM app_settings;
+SELECT count(*) FROM HRSYSTEM_app_settings;
 -- expect 1
 ```
 
@@ -54,12 +58,12 @@ SELECT count(*) FROM app_settings;
 stale or dump-restored hash can leave login broken). Set a working password:
 
 ```sql
-UPDATE users
+UPDATE HRSYSTEM_users
 SET password_hash = crypt('ChangeMe123!', gen_salt('bf'))
 WHERE email = 'hr@company.com';
 ```
 ```sql
-INSERT INTO users (email, password_hash, full_name, role)
+INSERT INTO HRSYSTEM_users (email, password_hash, full_name, role)
 VALUES ('your@email.com', crypt('your-password', gen_salt('bf')), 'Your Name', 'ADMIN');
 ```
 Sign in with `hr@company.com` / `ChangeMe123!`. Change the password before go-live.

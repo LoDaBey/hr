@@ -30,7 +30,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
           const user = await one<{ id: string; email: string; full_name: string; role: string }>(
             `SELECT id, email, full_name, role
-             FROM users
+             FROM HRSYSTEM_users
              WHERE lower(email) = $1 AND is_active
                AND password_hash = crypt($2, password_hash)`,
             [email, password],

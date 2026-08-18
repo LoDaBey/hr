@@ -10,9 +10,10 @@ import { datetime } from '@/lib/format';
 import { JOB_STATUS, labelOf } from '@/lib/labels';
 import { useHrJobs } from '@/hooks/useHrJobs';
 import type { JobStatus } from '@/types/domain';
+import { JobRowActions } from './JobRowActions';
 
 export function JobsListView() {
-  const { data, error, isLoading } = useHrJobs();
+  const { data, error, isLoading, mutate } = useHrJobs();
 
   return (
     <Stack gap="md">
@@ -47,7 +48,7 @@ export function JobsListView() {
               accessor: 'title',
               title: 'Title',
               render: (job) => (
-                <Link href={`/hr/jobs/${job.id}`} aria-label={`Edit job ${job.title}`}>
+                <Link href={`/hr/jobs/${job.id}`} aria-label={`Open job ${job.title}`}>
                   {job.title}
                 </Link>
               ),
@@ -81,11 +82,22 @@ export function JobsListView() {
               title: 'Created',
               render: (job) => datetime(job.created_at),
             },
+            {
+              accessor: 'actions',
+              title: 'Actions',
+              render: (job) => (
+                <JobRowActions
+                  jobId={job.id}
+                  title={job.title}
+                  onDeleted={() => void mutate()}
+                />
+              ),
+            },
           ]}
           noRecordsText="No jobs yet — create one to publish a share link"
         />
       )}
-      {!isLoading && data?.jobs.length === 0 ? (
+      {!isLoading && data?.HRSYSTEM_jobs.length === 0 ? (
         <Text c="dimmed">Create a job, add questions, then publish to get a candidate link.</Text>
       ) : null}
     </Stack>

@@ -26,6 +26,7 @@ export function EditJobView({ jobId }: { jobId: string }) {
     <Stack gap="md">
       <Title order={1}>Edit job</Title>
       <JobWizard
+        key={jobId}
         mode="edit"
         initial={data}
         onSaved={async () => {

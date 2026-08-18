@@ -1,7 +1,7 @@
 import { requireHr } from '@/lib/auth-hr';
 import { errorCode, errorMessage } from '@/lib/errors';
 import { jsonError, jsonOk } from '@/lib/http';
-import { getHrJobDetail, updateHrJob } from '@/lib/repos/hr-jobs';
+import { deleteHrJob, getHrJobDetail, updateHrJob } from '@/lib/repos/hr-jobs';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,5 +64,28 @@ export async function PATCH(
       return jsonError(400, 'VALIDATION_FAILED', errorMessage(error, 'Validation failed'));
     }
     return jsonError(500, 'INTERNAL_ERROR', 'Failed to update job');
+  }
+}
+
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ jobId: string }> },
+) {
+  const user = await requireHr();
+  if (!user) {
+    return jsonError(401, 'UNAUTHENTICATED', 'Sign in required');
+  }
+
+  try {
+    const { jobId } = await context.params;
+    const data = await deleteHrJob(jobId);
+    return jsonOk(data);
+  } catch (error) {
+    console.error(error);
+    const code = errorCode(error);
+    if (code === 'NOT_FOUND') {
+      return jsonError(404, 'NOT_FOUND', errorMessage(error, 'Job not found'));
+    }
+    return jsonError(500, 'INTERNAL_ERROR', 'Failed to delete job');
   }
 }

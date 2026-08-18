@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     const result = await tx(async (client) => {
       const existing = await oneTx<Pick<Application, 'id' | 'candidate_id' | 'stage'>>(
         client,
-        `SELECT id, candidate_id, stage FROM applications WHERE submission_id = $1`,
+        `SELECT id, candidate_id, stage FROM HRSYSTEM_applications WHERE submission_id = $1`,
         [input.idempotency_key],
       );
       if (existing) {
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         };
       }
 
-      const job = await oneTx<Job>(client, `SELECT * FROM jobs WHERE id = $1`, [input.job_id]);
+      const job = await oneTx<Job>(client, `SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [input.job_id]);
       if (!job) {
         throw new SubmitError(404, 'NOT_FOUND', 'Job not found');
       }
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
 
       const questions = (
         await client.query<JobQuestion>(
-          `SELECT * FROM job_questions WHERE job_id = $1 ORDER BY order_index`,
+          `SELECT * FROM HRSYSTEM_job_questions WHERE job_id = $1 ORDER BY order_index`,
           [job.id],
         )
       ).rows;
@@ -113,21 +113,21 @@ export async function POST(req: Request) {
 
       const candidate = await oneTx<Candidate>(
         client,
-        `INSERT INTO candidates (email, phone, full_name, country, city, age, military_status, marital_status)
+        `INSERT INTO HRSYSTEM_candidates (email, phone, full_name, country, city, age, military_status, marital_status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (email) DO UPDATE SET
            full_name = EXCLUDED.full_name,
            phone = EXCLUDED.phone,
            phone_history = CASE
-             WHEN candidates.phone IS DISTINCT FROM EXCLUDED.phone AND candidates.phone IS NOT NULL
-             THEN candidates.phone_history || to_jsonb(candidates.phone)
-             ELSE candidates.phone_history
+             WHEN HRSYSTEM_candidates.phone IS DISTINCT FROM EXCLUDED.phone AND HRSYSTEM_candidates.phone IS NOT NULL
+             THEN HRSYSTEM_candidates.phone_history || to_jsonb(HRSYSTEM_candidates.phone)
+             ELSE HRSYSTEM_candidates.phone_history
            END,
-           country = COALESCE(EXCLUDED.country, candidates.country),
-           city = COALESCE(EXCLUDED.city, candidates.city),
-           age = COALESCE(EXCLUDED.age, candidates.age),
-           military_status = COALESCE(EXCLUDED.military_status, candidates.military_status),
-           marital_status = COALESCE(EXCLUDED.marital_status, candidates.marital_status)
+           country = COALESCE(EXCLUDED.country, HRSYSTEM_candidates.country),
+           city = COALESCE(EXCLUDED.city, HRSYSTEM_candidates.city),
+           age = COALESCE(EXCLUDED.age, HRSYSTEM_candidates.age),
+           military_status = COALESCE(EXCLUDED.military_status, HRSYSTEM_candidates.military_status),
+           marital_status = COALESCE(EXCLUDED.marital_status, HRSYSTEM_candidates.marital_status)
          RETURNING *`,
         [
           input.candidate.email,
@@ -146,7 +146,7 @@ export async function POST(req: Request) {
 
       const duplicate = await oneTx<{ id: string }>(
         client,
-        `SELECT id FROM applications
+        `SELECT id FROM HRSYSTEM_applications
          WHERE candidate_id = $1 AND job_id = $2
            AND (
              status NOT IN ('REJECTED', 'WITHDRAWN')
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
       try {
         const inserted = await oneTx<Pick<Application, 'id' | 'candidate_id' | 'stage'>>(
           client,
-          `INSERT INTO applications (
+          `INSERT INTO HRSYSTEM_applications (
              candidate_id, job_id, employment_status, current_company, current_position,
              years_experience, expected_salary, notice_period_days, available_from,
              source, submission_id
@@ -194,7 +194,7 @@ export async function POST(req: Request) {
         if (isPgUniqueViolation(error) && String(error.constraint ?? '').includes('submission_id')) {
           const replayed = await oneTx<Pick<Application, 'id' | 'candidate_id' | 'stage'>>(
             client,
-            `SELECT id, candidate_id, stage FROM applications WHERE submission_id = $1`,
+            `SELECT id, candidate_id, stage FROM HRSYSTEM_applications WHERE submission_id = $1`,
             [input.idempotency_key],
           );
           if (replayed) {
@@ -215,16 +215,16 @@ export async function POST(req: Request) {
       }
 
       await client.query(
-        `INSERT INTO application_answers (application_id, question_id, question_key, answer)
+        `INSERT INTO HRSYSTEM_application_answers (application_id, question_id, question_key, answer)
          SELECT $1, q.id, kv.key, kv.value
          FROM jsonb_each($2::jsonb) kv
-         LEFT JOIN job_questions q ON q.job_id = $3 AND q.key = kv.key`,
+         LEFT JOIN HRSYSTEM_job_questions q ON q.job_id = $3 AND q.key = kv.key`,
         [application.id, JSON.stringify(input.answers ?? {}), job.id],
       );
 
       if (input.cv) {
         await client.query(
-          `INSERT INTO documents (
+          `INSERT INTO HRSYSTEM_documents (
              candidate_id, application_id, doc_type, public_id, resource_type,
              delivery_type, format, bytes, original_name
            )
@@ -243,7 +243,7 @@ export async function POST(req: Request) {
       }
 
       await client.query(
-        `INSERT INTO recruitment_events (
+        `INSERT INTO HRSYSTEM_recruitment_events (
            application_id, candidate_id, job_id, event_type,
            from_stage, to_stage, actor_type, payload
          )
@@ -258,7 +258,7 @@ export async function POST(req: Request) {
       );
 
       await client.query(
-        `INSERT INTO communications (
+        `INSERT INTO HRSYSTEM_communications (
            candidate_id, application_id, template_key, to_email, subject, variables, dedupe_key
          )
          VALUES ($1, $2, 'APPLICATION_RECEIVED', $3, $4, $5::jsonb, $6)

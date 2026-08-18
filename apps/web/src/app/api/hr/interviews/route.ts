@@ -27,10 +27,10 @@ export async function GET() {
                 c.email AS candidate_email,
                 j.title AS job_title,
                 a.stage AS application_stage
-         FROM interviews i
-         JOIN applications a ON a.id = i.application_id
-         JOIN candidates c ON c.id = a.candidate_id
-         JOIN jobs j ON j.id = a.job_id
+         FROM HRSYSTEM_interviews i
+         JOIN HRSYSTEM_applications a ON a.id = i.application_id
+         JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+         JOIN HRSYSTEM_jobs j ON j.id = a.job_id
          WHERE i.status = 'SCHEDULED'
            AND i.scheduled_at >= now()
            AND i.scheduled_at < now() + interval '14 days'
@@ -50,9 +50,9 @@ export async function GET() {
                 j.title AS job_title,
                 a.stage,
                 a.updated_at
-         FROM applications a
-         JOIN candidates c ON c.id = a.candidate_id
-         JOIN jobs j ON j.id = a.job_id
+         FROM HRSYSTEM_applications a
+         JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+         JOIN HRSYSTEM_jobs j ON j.id = a.job_id
          WHERE a.stage IN ('FINAL_INTERVIEW_PENDING', 'SECOND_FINAL_INTERVIEW')
            AND a.status = 'ACTIVE'
          ORDER BY a.updated_at DESC`,

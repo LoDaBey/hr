@@ -6,6 +6,8 @@ import type {
   HardFailAction,
   InterviewStatus,
   JobQuestionType,
+  JobCurrency,
+  JobDepartment,
   JobStatus,
   ParseStatus,
   ProctoringSeverity,
@@ -85,6 +87,38 @@ export const JOB_STATUS: Record<JobStatus, string> = {
   PAUSED: 'Paused',
   CLOSED: 'Closed',
 };
+
+export const JOB_DEPARTMENT: Record<JobDepartment, string> = {
+  'Social Media': 'Social Media',
+  'Data Analysis & Monitoring': 'Data Analysis & Monitoring',
+  'Human Resources': 'Human Resources',
+  'Digital Engagement': 'Digital Engagement',
+  'Web Development': 'Web Development',
+  QC: 'QC',
+  Productions: 'Productions',
+};
+
+export const JOB_CURRENCY: Record<JobCurrency, string> = {
+  EGP: 'EGP',
+  USD: 'USD',
+  AED: 'Dirham',
+};
+
+export function normalizeJobCurrency(value: string | null | undefined): string {
+  if (value == null || value === '') return 'USD';
+  if (value === 'Dirham') return 'AED';
+  return value;
+}
+
+export function withCurrentSelectOption<T extends string>(
+  options: Array<{ value: T; label: string }>,
+  current: string | null | undefined,
+): Array<{ value: string; label: string }> {
+  const mapped = options.map((option) => ({ value: option.value, label: option.label }));
+  if (!current) return mapped;
+  if (mapped.some((option) => option.value === current)) return mapped;
+  return [{ value: current, label: current }, ...mapped];
+}
 
 export const ROLE: Record<Role, string> = {
   ADMIN: 'Admin',

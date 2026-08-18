@@ -79,7 +79,7 @@ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
 ## Database
 
 Fresh database: apply `scripts/schema.sql` only. Commands, verification queries
-(24 tables, 11 email templates, one `app_settings` row), and the HR login password fix are
+(24 `HRSYSTEM_*` tables, 11 email templates, one `HRSYSTEM_app_settings` row), and the HR login password fix are
 in `scripts/README.md`.
 
 ## Run locally

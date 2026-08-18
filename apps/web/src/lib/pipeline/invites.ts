@@ -121,9 +121,9 @@ export async function issueInvite(
       `SELECT a.id, a.stage, a.candidate_id, a.job_id,
               c.email, c.full_name, j.title,
               j.${config.inviteHoursColumn} AS invite_hours
-       FROM applications a
-       JOIN candidates c ON c.id = a.candidate_id
-       JOIN jobs j ON j.id = a.job_id
+       FROM HRSYSTEM_applications a
+       JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+       JOIN HRSYSTEM_jobs j ON j.id = a.job_id
        WHERE a.id = $1
        FOR UPDATE OF a`,
       [applicationId],
@@ -140,7 +140,7 @@ export async function issueInvite(
     const assessment = await oneTx<{ id: string; duration_minutes: number }>(
       client,
       `SELECT id, duration_minutes
-       FROM assessments
+       FROM HRSYSTEM_assessments
        WHERE job_id = $1 AND kind = $2 AND is_active = true
        LIMIT 1`,
       [application.job_id, config.assessmentKind],
@@ -151,7 +151,7 @@ export async function issueInvite(
     }
 
     await client.query(
-      `UPDATE candidate_assessments
+      `UPDATE HRSYSTEM_candidate_assessments
        SET status = 'CANCELLED', updated_at = now()
        WHERE application_id = $1
          AND kind = $2
@@ -162,7 +162,7 @@ export async function issueInvite(
     const sitting = config.withRecordingStatus
       ? await oneTx<{ id: string; invite_deadline: string; duration_minutes: number }>(
           client,
-          `INSERT INTO candidate_assessments (
+          `INSERT INTO HRSYSTEM_candidate_assessments (
              application_id, assessment_id, kind, status,
              invite_deadline, duration_minutes, recording_status
            )
@@ -183,7 +183,7 @@ export async function issueInvite(
         )
       : await oneTx<{ id: string; invite_deadline: string; duration_minutes: number }>(
           client,
-          `INSERT INTO candidate_assessments (
+          `INSERT INTO HRSYSTEM_candidate_assessments (
              application_id, assessment_id, kind, status,
              invite_deadline, duration_minutes
            )
@@ -211,7 +211,7 @@ export async function issueInvite(
     const tokenHash = hashToken(raw);
 
     await client.query(
-      `INSERT INTO access_tokens (
+      `INSERT INTO HRSYSTEM_access_tokens (
          token_hash, purpose, application_id, candidate_assessment_id, expires_at
        )
        VALUES ($1, $2, $3, $4, $5)`,
@@ -220,19 +220,19 @@ export async function issueInvite(
 
     const fromStage = application.stage;
     await client.query(
-      `UPDATE applications
-       SET stage = $2::app_stage, updated_at = now()
+      `UPDATE HRSYSTEM_applications
+       SET stage = $2::HRSYSTEM_app_stage, updated_at = now()
        WHERE id = $1`,
       [applicationId, config.targetStage],
     );
 
     await client.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          application_id, candidate_id, job_id, event_type,
          from_stage, to_stage, actor_type, actor_id, actor_label, payload
        ) VALUES (
          $1, $2, $3, $4,
-         $5::app_stage, $6::app_stage,
+         $5::HRSYSTEM_app_stage, $6::HRSYSTEM_app_stage,
          $7, $8, $9, $10::jsonb
        )`,
       [
@@ -256,12 +256,12 @@ export async function issueInvite(
 
     if (options.autoScheduled) {
       await client.query(
-        `INSERT INTO recruitment_events (
+        `INSERT INTO HRSYSTEM_recruitment_events (
            application_id, candidate_id, job_id, event_type,
            from_stage, to_stage, actor_type, actor_id, actor_label, payload
          ) VALUES (
            $1, $2, $3, $4,
-           $5::app_stage, $6::app_stage,
+           $5::HRSYSTEM_app_stage, $6::HRSYSTEM_app_stage,
            $7, $8, $9, $10::jsonb
          )`,
         [
@@ -296,7 +296,7 @@ export async function issueInvite(
     };
 
     await client.query(
-      `INSERT INTO communications (
+      `INSERT INTO HRSYSTEM_communications (
          candidate_id, application_id, template_key, to_email,
          variables, dedupe_key, scheduled_for
        )
@@ -340,14 +340,14 @@ export async function sendInviteNow(
   return tx(async (client) => {
     const application = await oneTx<{ id: string; stage: Stage; candidate_id: string; job_id: string }>(
       client,
-      `SELECT id, stage, candidate_id, job_id FROM applications WHERE id = $1 FOR UPDATE`,
+      `SELECT id, stage, candidate_id, job_id FROM HRSYSTEM_applications WHERE id = $1 FOR UPDATE`,
       [applicationId],
     );
     if (!application) return { ok: false, reason: 'not_found' };
 
     const sitting = await oneTx<{ id: string }>(
       client,
-      `SELECT id FROM candidate_assessments
+      `SELECT id FROM HRSYSTEM_candidate_assessments
        WHERE application_id = $1 AND kind = $2 AND status IN ('INVITED', 'STARTED')
        ORDER BY created_at DESC
        LIMIT 1`,
@@ -357,7 +357,7 @@ export async function sendInviteNow(
 
     const updated = await oneTx<{ id: string }>(
       client,
-      `UPDATE communications
+      `UPDATE HRSYSTEM_communications
        SET scheduled_for = now()
        WHERE application_id = $1
          AND template_key = $2
@@ -369,12 +369,12 @@ export async function sendInviteNow(
     if (!updated) return { ok: false, reason: 'nothing_pending' };
 
     await client.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          application_id, candidate_id, job_id, event_type,
          from_stage, to_stage, actor_type, actor_id, actor_label, payload
        ) VALUES (
          $1, $2, $3, $4,
-         $5::app_stage, $5::app_stage,
+         $5::HRSYSTEM_app_stage, $5::HRSYSTEM_app_stage,
          $6, $7, $8, $9::jsonb
        )`,
       [
@@ -413,7 +413,7 @@ export async function cancelScheduledInvite(
       job_id: string;
     }>(
       client,
-      `SELECT id, stage, candidate_id, job_id FROM applications WHERE id = $1 FOR UPDATE`,
+      `SELECT id, stage, candidate_id, job_id FROM HRSYSTEM_applications WHERE id = $1 FOR UPDATE`,
       [applicationId],
     );
     if (!application) return { ok: false, reason: 'not_found' };
@@ -424,7 +424,7 @@ export async function cancelScheduledInvite(
 
     const sitting = await oneTx<{ id: string }>(
       client,
-      `SELECT id FROM candidate_assessments
+      `SELECT id FROM HRSYSTEM_candidate_assessments
        WHERE application_id = $1 AND kind = $2 AND status = 'INVITED'
        ORDER BY created_at DESC
        LIMIT 1`,
@@ -434,7 +434,7 @@ export async function cancelScheduledInvite(
 
     const cancelled = await oneTx<{ id: string }>(
       client,
-      `UPDATE communications
+      `UPDATE HRSYSTEM_communications
        SET status = 'CANCELLED'
        WHERE application_id = $1
          AND template_key = $2
@@ -446,33 +446,33 @@ export async function cancelScheduledInvite(
     if (!cancelled) return { ok: false, reason: 'nothing_pending' };
 
     await client.query(
-      `UPDATE candidate_assessments
+      `UPDATE HRSYSTEM_candidate_assessments
        SET status = 'CANCELLED', updated_at = now()
        WHERE id = $1`,
       [sitting.id],
     );
 
     await client.query(
-      `UPDATE access_tokens
+      `UPDATE HRSYSTEM_access_tokens
        SET expires_at = now()
        WHERE candidate_assessment_id = $1 AND used_at IS NULL`,
       [sitting.id],
     );
 
     await client.query(
-      `UPDATE applications
-       SET stage = $2::app_stage, updated_at = now()
+      `UPDATE HRSYSTEM_applications
+       SET stage = $2::HRSYSTEM_app_stage, updated_at = now()
        WHERE id = $1`,
       [applicationId, config.revertStage],
     );
 
     await client.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          application_id, candidate_id, job_id, event_type,
          from_stage, to_stage, actor_type, actor_id, actor_label, payload
        ) VALUES (
          $1, $2, $3, $4,
-         $5::app_stage, $6::app_stage,
+         $5::HRSYSTEM_app_stage, $6::HRSYSTEM_app_stage,
          $7, $8, $9, $10::jsonb
        )`,
       [
@@ -509,12 +509,12 @@ export async function auditAutoInviteSkipped(
   },
 ): Promise<void> {
   await client.query(
-    `INSERT INTO recruitment_events (
+    `INSERT INTO HRSYSTEM_recruitment_events (
        application_id, candidate_id, job_id, event_type,
        from_stage, to_stage, actor_type, actor_id, actor_label, payload
      ) VALUES (
        $1, $2, $3, 'AUTO_INVITE_SKIPPED',
-       $4::app_stage, $4::app_stage,
+       $4::HRSYSTEM_app_stage, $4::HRSYSTEM_app_stage,
        $5, $6, $7, $8::jsonb
      )`,
     [

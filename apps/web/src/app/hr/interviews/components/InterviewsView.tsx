@@ -25,7 +25,7 @@ export function InterviewsView() {
   }
 
   if (error || !data) {
-    return <ErrorState title="Interviews unavailable" message="Could not load interviews." />;
+    return <ErrorState title="Interviews unavailable" message="Could not load HRSYSTEM_interviews." />;
   }
 
   return (

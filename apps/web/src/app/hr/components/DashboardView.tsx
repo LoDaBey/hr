@@ -152,9 +152,17 @@ export function DashboardView() {
                 {by_job.map((job) => (
                   <Table.Tr key={job.job_id}>
                     <Table.Td>
-                      <Text fw={600} size="sm">
+                      <Anchor
+                        component={Link}
+                        href={`/hr/jobs/${job.job_id}`}
+                        aria-label={`Open job ${job.title}`}
+                        c="accent"
+                        underline="hover"
+                        fw={600}
+                        size="sm"
+                      >
                         {job.title}
-                      </Text>
+                      </Anchor>
                     </Table.Td>
                     {DASHBOARD_STAGE_COLS.map((col) => {
                       const count = job.counts[col.key] ?? 0;

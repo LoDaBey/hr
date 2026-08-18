@@ -60,14 +60,14 @@ export async function PATCH(
         status: string;
       }>(
         client,
-        `SELECT id, application_id, status FROM interviews WHERE id = $1 FOR UPDATE`,
+        `SELECT id, application_id, status FROM HRSYSTEM_interviews WHERE id = $1 FOR UPDATE`,
         [interviewId],
       );
       if (!interview) return { kind: 'not_found' as const };
       if (interview.status !== 'SCHEDULED') return { kind: 'wrong_stage' as const };
 
       await client.query(
-        `UPDATE interviews SET
+        `UPDATE HRSYSTEM_interviews SET
            status = 'COMPLETED',
            score = COALESCE($2, score),
            notes = COALESCE($3, notes),
@@ -93,8 +93,8 @@ export async function PATCH(
         job_id: string;
       }>(
         client,
-        `UPDATE applications
-         SET stage = 'FINAL_INTERVIEW_COMPLETED'::app_stage, updated_at = now()
+        `UPDATE HRSYSTEM_applications
+         SET stage = 'FINAL_INTERVIEW_COMPLETED'::HRSYSTEM_app_stage, updated_at = now()
          WHERE id = $1
          RETURNING id, stage, candidate_id, job_id`,
         [interview.application_id],
@@ -103,12 +103,12 @@ export async function PATCH(
       if (!app) return { kind: 'error' as const };
 
       await client.query(
-        `INSERT INTO recruitment_events (
+        `INSERT INTO HRSYSTEM_recruitment_events (
            application_id, candidate_id, job_id, event_type,
            from_stage, to_stage, actor_type, actor_id, actor_label, payload
          ) VALUES (
            $1, $2, $3, 'INTERVIEW_COMPLETED',
-           'FINAL_INTERVIEW_SCHEDULED'::app_stage, 'FINAL_INTERVIEW_COMPLETED'::app_stage,
+           'FINAL_INTERVIEW_SCHEDULED'::HRSYSTEM_app_stage, 'FINAL_INTERVIEW_COMPLETED'::HRSYSTEM_app_stage,
            'HR', $4, $5, $6::jsonb
          )`,
         [

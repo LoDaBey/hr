@@ -44,17 +44,17 @@ function toPublicJob(row: PublicJobRow): PublicJobDetail {
 }
 
 export async function findJobById(id: string): Promise<Job | null> {
-  return one<Job>(`SELECT * FROM jobs WHERE id = $1`, [id]);
+  return one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [id]);
 }
 
 export async function findJobBySlug(slug: string): Promise<Job | null> {
-  return one<Job>(`SELECT * FROM jobs WHERE slug = $1`, [slug]);
+  return one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE slug = $1`, [slug]);
 }
 
 export async function listPublicJobs(): Promise<PublicJobListItem[]> {
   return query<PublicJobListItem>(
     `SELECT slug, title, department, location, work_mode, employment_type, application_deadline
-     FROM jobs
+     FROM HRSYSTEM_jobs
      WHERE status = 'OPEN'
        AND (application_deadline IS NULL OR application_deadline > now())
      ORDER BY created_at DESC`,
@@ -64,7 +64,7 @@ export async function listPublicJobs(): Promise<PublicJobListItem[]> {
 export async function listJobQuestions(jobId: string): Promise<PublicJobQuestion[]> {
   return query<PublicJobQuestion>(
     `SELECT id, key, label, type, options, is_required, order_index
-     FROM job_questions
+     FROM HRSYSTEM_job_questions
      WHERE job_id = $1
      ORDER BY order_index`,
     [jobId],
@@ -74,7 +74,7 @@ export async function listJobQuestions(jobId: string): Promise<PublicJobQuestion
 export async function getPublicJob(slug: string): Promise<PublicJobLookup> {
   const row = await one<PublicJobRow>(
     `SELECT ${PUBLIC_JOB_COLUMNS}
-     FROM jobs
+     FROM HRSYSTEM_jobs
      WHERE slug = $1`,
     [slug],
   );
@@ -94,7 +94,7 @@ export async function getPublicJob(slug: string): Promise<PublicJobLookup> {
 
 export async function listOpenJobs(): Promise<Job[]> {
   return query<Job>(
-    `SELECT * FROM jobs
+    `SELECT * FROM HRSYSTEM_jobs
      WHERE status = 'OPEN'
        AND (application_deadline IS NULL OR application_deadline > now())
      ORDER BY created_at DESC`,
@@ -103,7 +103,7 @@ export async function listOpenJobs(): Promise<Job[]> {
 
 export async function listJobs(status: JobStatus | null = null): Promise<Job[]> {
   return query<Job>(
-    `SELECT * FROM jobs
+    `SELECT * FROM HRSYSTEM_jobs
      WHERE ($1::text IS NULL OR status = $1)
      ORDER BY created_at DESC`,
     [status],

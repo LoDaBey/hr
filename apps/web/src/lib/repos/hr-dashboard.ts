@@ -43,8 +43,8 @@ export async function getHrDashboard(): Promise<HrDashboardResult> {
          count(*) FILTER (WHERE a.stage::text LIKE 'FINAL_INTERVIEW%' OR a.stage='OFFER_PENDING') AS final_int,
          count(*) FILTER (WHERE a.stage='HIRED') AS hired,
          count(*) FILTER (WHERE a.status='REJECTED') AS rejected
-       FROM jobs j
-       LEFT JOIN applications a ON a.job_id = j.id
+       FROM HRSYSTEM_jobs j
+       LEFT JOIN HRSYSTEM_applications a ON a.job_id = j.id
        WHERE j.status <> 'DRAFT'
        GROUP BY j.id, j.title
        ORDER BY j.created_at DESC`,
@@ -67,12 +67,12 @@ export async function getHrDashboard(): Promise<HrDashboardResult> {
          )::int AS interviews_upcoming,
          count(*) FILTER (WHERE stage = 'HIRED')::int AS hired,
          count(*) FILTER (WHERE status = 'REJECTED')::int AS rejected
-       FROM applications`,
+       FROM HRSYSTEM_applications`,
     ),
     one<AlertCounts>(
       `SELECT
-         (SELECT count(*)::int FROM communications WHERE status = 'FAILED') AS failed_emails,
-         (SELECT count(*)::int FROM workflow_errors WHERE resolved = false) AS open_errors`,
+         (SELECT count(*)::int FROM HRSYSTEM_communications WHERE status = 'FAILED') AS failed_emails,
+         (SELECT count(*)::int FROM HRSYSTEM_workflow_errors WHERE resolved = false) AS open_errors`,
     ),
   ]);
 

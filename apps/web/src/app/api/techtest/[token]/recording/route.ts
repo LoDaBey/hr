@@ -75,8 +75,8 @@ export async function POST(
         const row = await oneTx<{ id: string; recording_status: string | null }>(
           client,
           `SELECT ca.id, ca.recording_status
-           FROM access_tokens t
-           JOIN candidate_assessments ca ON ca.id = t.candidate_assessment_id
+           FROM HRSYSTEM_access_tokens t
+           JOIN HRSYSTEM_candidate_assessments ca ON ca.id = t.candidate_assessment_id
            WHERE t.token_hash = $1 AND ca.kind = 'TECH_TEST'
            LIMIT 1`,
           [hashToken(token)],
@@ -94,7 +94,7 @@ export async function POST(
       }
 
       await client.query(
-        `INSERT INTO recordings (
+        `INSERT INTO HRSYSTEM_recordings (
            candidate_assessment_id, part_no, public_id, resource_type, delivery_type,
            format, duration_seconds, bytes, started_at, ended_at
          ) VALUES ($1, $2, $3, 'video', 'authenticated', $4, $5, $6, $7::timestamptz, $8::timestamptz)
@@ -118,7 +118,7 @@ export async function POST(
       );
 
       await client.query(
-        `UPDATE candidate_assessments
+        `UPDATE HRSYSTEM_candidate_assessments
          SET recording_status = 'READY', updated_at = now()
          WHERE id = $1`,
         [sittingId],
