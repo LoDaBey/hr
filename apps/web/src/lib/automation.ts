@@ -29,7 +29,7 @@ export async function runAutomation<T>(
   }
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 60_000);
+  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 20_000);
   try {
     const res = await fetch(url, {
       method: 'POST',

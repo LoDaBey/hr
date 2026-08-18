@@ -87,21 +87,6 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
   const router = useRouter();
   const { data, error, isLoading, mutate } = useHrCandidate(applicationId);
 
-  async function openCv() {
-    if (!data?.cv) return;
-    try {
-      const refreshed = await mutate();
-      const url = refreshed?.cv?.signed_url ?? data.cv.signed_url;
-      const win = window.open(url, '_blank', 'noopener,noreferrer');
-      if (!win) {
-        toastError('Popup blocked — allow popups and try again');
-      }
-    } catch {
-      toastError('Could not open CV — refreshing signed URL failed');
-      await mutate();
-    }
-  }
-
   async function retryEmail(communicationId: string) {
     try {
       await api(`/api/hr/emails/${communicationId}/retry`, { method: 'POST' });
@@ -284,9 +269,12 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
           <>
             <Group>
               <MotionButton
+                component="a"
+                href={cv.signed_url}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="cursor-pointer rounded-lg"
-                aria-label="Open signed CV URL"
-                onClick={() => void openCv()}
+                aria-label={`Open CV ${cv.original_name}`}
               >
                 Open CV ({cv.original_name})
               </MotionButton>

@@ -35,12 +35,16 @@ async function dispatchOne(row: Communication): Promise<'sent' | 'failed'> {
     const subject = renderTemplate(template.subject, row.variables);
     const html = renderTemplate(template.body_html, row.variables);
 
-    const result = await runAutomation<EmailSendData>('email.send', {
-      to: row.to_email,
-      subject,
-      html,
-      from_name: fromName(row.variables),
-    });
+    const result = await runAutomation<EmailSendData>(
+      'email.send',
+      {
+        to: row.to_email,
+        subject,
+        html,
+        from_name: fromName(row.variables),
+      },
+      { timeoutMs: 8_000 },
+    );
 
     if (!result.ok) {
       throw new Error(result.error.message || 'email.send failed');
