@@ -1,6 +1,7 @@
 import 'server-only';
 import { runAutomation } from '@/lib/automation';
 import { one, query, tx } from '@/lib/db';
+import { insertWorkflowError } from '@/lib/repos/workflow-errors';
 import type { AssessmentGradeData, AssessmentGradeResultItem } from '@/types/api';
 import type { QuestionType, Stage } from '@/types/domain';
 
@@ -208,7 +209,17 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
       })),
     });
 
-    if (!result.ok || !result.data?.results) {
+    if (!result.ok) {
+      aiFailed = true;
+      console.error('[grading] assessment.grade failed', result.error.message);
+      await insertWorkflowError({
+        action: 'assessment.grade',
+        node: 'gradeAssessment',
+        error_message: result.error.message,
+        application_id: sitting.application_id,
+        candidate_id: sitting.candidate_id,
+      });
+    } else if (!result.data?.results) {
       aiFailed = true;
       console.error('[grading] assessment.grade failed', result);
     } else {
@@ -465,7 +476,17 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
       })),
     });
 
-    if (!result.ok || !result.data?.results) {
+    if (!result.ok) {
+      aiFailed = true;
+      console.error('[evaluateTechTest] assessment.grade failed', result.error.message);
+      await insertWorkflowError({
+        action: 'assessment.grade',
+        node: 'evaluateTechTest',
+        error_message: result.error.message,
+        application_id: sitting.application_id,
+        candidate_id: sitting.candidate_id,
+      });
+    } else if (!result.data?.results) {
       aiFailed = true;
       console.error('[evaluateTechTest] assessment.grade failed', result);
     } else {

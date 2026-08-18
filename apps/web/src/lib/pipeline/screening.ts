@@ -3,6 +3,7 @@ import { signedDeliveryUrl } from '@/lib/cloudinary';
 import { runAutomation } from '@/lib/automation';
 import { one, query } from '@/lib/db';
 import { appendEvent } from '@/lib/repos/events';
+import { insertWorkflowError } from '@/lib/repos/workflow-errors';
 import type { CvParseData, ScreeningRunData } from '@/types/api';
 import type {
   Application,
@@ -133,6 +134,14 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
               [result.data.raw_text, JSON.stringify(result.data.parsed ?? {}), document.id],
             );
           } else {
+            console.error('cv.parse failed', applicationId, result.error.message);
+            await insertWorkflowError({
+              action: 'cv.parse',
+              node: 'screening',
+              error_message: result.error.message,
+              application_id: applicationId,
+              candidate_id: application.candidate_id,
+            });
             await one(
               `UPDATE HRSYSTEM_documents SET parse_status = 'FAILED' WHERE id = $1`,
               [document.id],
@@ -191,6 +200,14 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         reasoning = result.data.reasoning_summary || reasoning;
         rawResponse = result.data;
       } else {
+        console.error('screening.run failed', applicationId, result.error.message);
+        await insertWorkflowError({
+          action: 'screening.run',
+          node: 'screening',
+          error_message: result.error.message,
+          application_id: applicationId,
+          candidate_id: application.candidate_id,
+        });
         rawResponse = result.error;
       }
     } catch (error) {
