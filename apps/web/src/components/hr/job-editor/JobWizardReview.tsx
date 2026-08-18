@@ -5,6 +5,7 @@ import {
   ASSESSMENT_QUESTION_TYPE,
   EMPLOYMENT_TYPE,
   HARD_FAIL_ACTION,
+  JOB_CURRENCY,
   JOB_QUESTION_TYPE,
   WORK_MODE,
   labelOf,
@@ -100,12 +101,13 @@ export function JobWizardReview({
   techTest: AssessmentDraft;
   onEditStep: (step: number) => void;
 }) {
+  const currency = values.currency || 'USD';
   const salary =
     values.salary_min !== '' || values.salary_max !== ''
-      ? `${money(Number(values.salary_min) || null, values.currency || 'USD')} – ${money(
+      ? `${money(Number(values.salary_min) || null, currency)} – ${money(
           Number(values.salary_max) || null,
-          values.currency || 'USD',
-        )}`
+          currency,
+        )} (${labelOf(JOB_CURRENCY, currency, currency)})`
       : '—';
 
   return (

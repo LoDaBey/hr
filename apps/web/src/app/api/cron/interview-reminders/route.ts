@@ -34,10 +34,10 @@ async function claimReminders(
     const res = await client.query<ReminderRow>(
       `SELECT i.id, i.application_id, i.scheduled_at, i.timezone, i.meeting_url,
               a.candidate_id, c.email, c.full_name, j.title
-       FROM interviews i
-       JOIN applications a ON a.id = i.application_id
-       JOIN candidates c ON c.id = a.candidate_id
-       JOIN jobs j ON j.id = a.job_id
+       FROM HRSYSTEM_interviews i
+       JOIN HRSYSTEM_applications a ON a.id = i.application_id
+       JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+       JOIN HRSYSTEM_jobs j ON j.id = a.job_id
        WHERE i.status = 'SCHEDULED'
          AND i.${stampColumn} IS NULL
          AND i.scheduled_at >= now() + ($1::interval)
@@ -48,7 +48,7 @@ async function claimReminders(
 
     for (const row of res.rows) {
       await client.query(
-        `UPDATE interviews SET ${stampColumn} = now(), updated_at = now() WHERE id = $1`,
+        `UPDATE HRSYSTEM_interviews SET ${stampColumn} = now(), updated_at = now() WHERE id = $1`,
         [row.id],
       );
     }

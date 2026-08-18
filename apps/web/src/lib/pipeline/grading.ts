@@ -145,8 +145,8 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
   const sitting = await one<SittingRow>(
     `SELECT ca.id, ca.application_id, ca.assessment_id, ca.kind, ca.status,
             a.candidate_id, a.job_id, a.stage
-     FROM candidate_assessments ca
-     JOIN applications a ON a.id = ca.application_id
+     FROM HRSYSTEM_candidate_assessments ca
+     JOIN HRSYSTEM_applications a ON a.id = ca.application_id
      WHERE ca.id = $1`,
     [sittingId],
   );
@@ -161,14 +161,14 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
 
   const questions = await query<QuestionRow>(
     `SELECT id, type, prompt, correct_key, rubric, max_score, order_index
-     FROM assessment_questions
+     FROM HRSYSTEM_assessment_questions
      WHERE assessment_id = $1
      ORDER BY order_index ASC, id ASC`,
     [sitting.assessment_id],
   );
 
   const answerRows = await query<AnswerRow>(
-    `SELECT question_id, answer FROM assessment_answers WHERE candidate_assessment_id = $1`,
+    `SELECT question_id, answer FROM HRSYSTEM_assessment_answers WHERE candidate_assessment_id = $1`,
     [sittingId],
   );
   const answersByQ = new Map(answerRows.map((r) => [r.question_id, r.answer]));
@@ -245,13 +245,13 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
     : `Scored ${sumScore} / ${sumMax} (${totalPct}%)`;
 
   await tx(async (client) => {
-    await client.query(`DELETE FROM assessment_evaluations WHERE candidate_assessment_id = $1`, [
+    await client.query(`DELETE FROM HRSYSTEM_assessment_evaluations WHERE candidate_assessment_id = $1`, [
       sittingId,
     ]);
 
     for (const ev of allEvals) {
       await client.query(
-        `INSERT INTO assessment_evaluations (
+        `INSERT INTO HRSYSTEM_assessment_evaluations (
            candidate_assessment_id, question_id, is_overall,
            score, max_score, correct_concepts, missing_concepts, technical_errors,
            feedback, confidence, model, raw_response
@@ -277,7 +277,7 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
     }
 
     await client.query(
-      `INSERT INTO assessment_evaluations (
+      `INSERT INTO HRSYSTEM_assessment_evaluations (
          candidate_assessment_id, question_id, is_overall,
          score, max_score, correct_concepts, missing_concepts, technical_errors,
          feedback, confidence, model, raw_response
@@ -298,28 +298,28 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
     );
 
     await client.query(
-      `UPDATE candidate_assessments
+      `UPDATE HRSYSTEM_candidate_assessments
        SET ai_score = $2, ai_max_score = $3, updated_at = now()
        WHERE id = $1`,
       [sittingId, Math.round(totalPct), 100],
     );
 
     await client.query(
-      `UPDATE applications
+      `UPDATE HRSYSTEM_applications
        SET assessment_score = $2,
-           stage = 'TECH_ASSESSMENT_REVIEW'::app_stage,
+           stage = 'TECH_ASSESSMENT_REVIEW'::HRSYSTEM_app_stage,
            updated_at = now()
        WHERE id = $1`,
       [sitting.application_id, Math.round(totalPct)],
     );
 
     await client.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          application_id, candidate_id, job_id, event_type,
          from_stage, to_stage, actor_type, actor_label, payload
        ) VALUES (
          $1, $2, $3, 'ASSESSMENT_EVALUATED',
-         $4::app_stage, 'TECH_ASSESSMENT_REVIEW'::app_stage,
+         $4::HRSYSTEM_app_stage, 'TECH_ASSESSMENT_REVIEW'::HRSYSTEM_app_stage,
          'AI', 'assessment.grade', $5::jsonb
        )`,
       [
@@ -401,8 +401,8 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
   const sitting = await one<SittingRow>(
     `SELECT ca.id, ca.application_id, ca.assessment_id, ca.kind, ca.status,
             a.candidate_id, a.job_id, a.stage
-     FROM candidate_assessments ca
-     JOIN applications a ON a.id = ca.application_id
+     FROM HRSYSTEM_candidate_assessments ca
+     JOIN HRSYSTEM_applications a ON a.id = ca.application_id
      WHERE ca.id = $1`,
     [sittingId],
   );
@@ -421,14 +421,14 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
 
   const questions = await query<QuestionRow>(
     `SELECT id, type, prompt, correct_key, rubric, max_score, order_index
-     FROM assessment_questions
+     FROM HRSYSTEM_assessment_questions
      WHERE assessment_id = $1
      ORDER BY order_index ASC, id ASC`,
     [sitting.assessment_id],
   );
 
   const answerRows = await query<AnswerRow>(
-    `SELECT question_id, answer FROM assessment_answers WHERE candidate_assessment_id = $1`,
+    `SELECT question_id, answer FROM HRSYSTEM_assessment_answers WHERE candidate_assessment_id = $1`,
     [sittingId],
   );
   const answersByQ = new Map(answerRows.map((r) => [r.question_id, r.answer]));
@@ -500,7 +500,7 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
   const proctorRows = await query<ProctorAgg>(
     `SELECT event, severity, count(*)::int AS n,
             min(occurred_at) AS first_at, max(occurred_at) AS last_at
-     FROM proctoring_events
+     FROM HRSYSTEM_proctoring_events
      WHERE candidate_assessment_id = $1
      GROUP BY event, severity`,
     [sittingId],
@@ -512,13 +512,13 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
     : `Scored ${sumScore} / ${sumMax} (${totalPct}%). ${proctor.summary}`;
 
   await tx(async (client) => {
-    await client.query(`DELETE FROM assessment_evaluations WHERE candidate_assessment_id = $1`, [
+    await client.query(`DELETE FROM HRSYSTEM_assessment_evaluations WHERE candidate_assessment_id = $1`, [
       sittingId,
     ]);
 
     for (const ev of allEvals) {
       await client.query(
-        `INSERT INTO assessment_evaluations (
+        `INSERT INTO HRSYSTEM_assessment_evaluations (
            candidate_assessment_id, question_id, is_overall,
            score, max_score, correct_concepts, missing_concepts, technical_errors,
            feedback, confidence, model, raw_response
@@ -544,7 +544,7 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
     }
 
     await client.query(
-      `INSERT INTO assessment_evaluations (
+      `INSERT INTO HRSYSTEM_assessment_evaluations (
          candidate_assessment_id, question_id, is_overall,
          score, max_score, correct_concepts, missing_concepts, technical_errors,
          feedback, confidence, model, raw_response
@@ -571,28 +571,28 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
     );
 
     await client.query(
-      `UPDATE candidate_assessments
+      `UPDATE HRSYSTEM_candidate_assessments
        SET ai_score = $2, ai_max_score = $3, updated_at = now()
        WHERE id = $1`,
       [sittingId, Math.round(totalPct), 100],
     );
 
     await client.query(
-      `UPDATE applications
+      `UPDATE HRSYSTEM_applications
        SET techtest_score = $2,
-           stage = 'RECORDED_TECH_REVIEW'::app_stage,
+           stage = 'RECORDED_TECH_REVIEW'::HRSYSTEM_app_stage,
            updated_at = now()
        WHERE id = $1`,
       [sitting.application_id, Math.round(totalPct)],
     );
 
     await client.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          application_id, candidate_id, job_id, event_type,
          from_stage, to_stage, actor_type, actor_label, payload
        ) VALUES (
          $1, $2, $3, 'TECHTEST_EVALUATED',
-         $4::app_stage, 'RECORDED_TECH_REVIEW'::app_stage,
+         $4::HRSYSTEM_app_stage, 'RECORDED_TECH_REVIEW'::HRSYSTEM_app_stage,
          'AI', 'assessment.grade', $5::jsonb
        )`,
       [

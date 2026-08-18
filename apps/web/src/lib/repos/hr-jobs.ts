@@ -7,6 +7,7 @@ import type {
   HrJobsAssessmentSetPayload,
   HrJobsAssessmentSetResult,
   HrJobsCreateResult,
+  HrJobsDeleteResult,
   HrJobsGetResult,
   HrJobsQuestionsSetPayload,
   HrJobsQuestionsSetResult,
@@ -74,8 +75,8 @@ export async function allocateJobSlug(title: string, client?: PoolClient): Promi
   let n = 2;
   for (;;) {
     const existing = client
-      ? await oneTx<{ id: string }>(client, `SELECT id FROM jobs WHERE slug = $1`, [candidate])
-      : await one<{ id: string }>(`SELECT id FROM jobs WHERE slug = $1`, [candidate]);
+      ? await oneTx<{ id: string }>(client, `SELECT id FROM HRSYSTEM_jobs WHERE slug = $1`, [candidate])
+      : await one<{ id: string }>(`SELECT id FROM HRSYSTEM_jobs WHERE slug = $1`, [candidate]);
     if (!existing) return candidate;
     candidate = `${base}-${n}`;
     n += 1;
@@ -83,7 +84,7 @@ export async function allocateJobSlug(title: string, client?: PoolClient): Promi
 }
 
 export async function getHrJobDetail(jobId: string): Promise<HrJobsGetResult | null> {
-  const job = await one<Job>(`SELECT * FROM jobs WHERE id = $1`, [jobId]);
+  const job = await one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [jobId]);
   if (!job) return null;
   const [questions, assessmentRows] = await Promise.all([
     listJobQuestions(jobId),
@@ -102,7 +103,7 @@ export async function getHrJobDetail(jobId: string): Promise<HrJobsGetResult | n
     }>(
       `SELECT a.id, a.kind, a.title, a.instructions, a.duration_minutes, a.pass_score,
               a.require_camera, a.require_mic, a.require_fullscreen, a.rules, a.is_active
-       FROM assessments a
+       FROM HRSYSTEM_assessments a
        WHERE a.job_id = $1
        ORDER BY a.kind, a.is_active DESC, a.created_at DESC`,
       [jobId],
@@ -112,7 +113,7 @@ export async function getHrJobDetail(jobId: string): Promise<HrJobsGetResult | n
   const assessments = await Promise.all(
     assessmentRows.map(async (row) => {
       const aq = await query<import('@/types/domain').AssessmentQuestion>(
-        `SELECT * FROM assessment_questions
+        `SELECT * FROM HRSYSTEM_assessment_questions
          WHERE assessment_id = $1
          ORDER BY order_index`,
         [row.id],
@@ -136,10 +137,10 @@ export async function listHrJobs(status: JobStatus | null = null): Promise<
     `SELECT j.*,
             a.duration_minutes AS assessment_duration_minutes,
             (
-              SELECT count(*)::int FROM assessment_questions aq WHERE aq.assessment_id = a.id
+              SELECT count(*)::int FROM HRSYSTEM_assessment_questions aq WHERE aq.assessment_id = a.id
             ) AS assessment_question_count
-     FROM jobs j
-     LEFT JOIN assessments a
+     FROM HRSYSTEM_jobs j
+     LEFT JOIN HRSYSTEM_assessments a
        ON a.job_id = j.id AND a.kind = 'ASSESSMENT' AND a.is_active = true
      WHERE ($1::text IS NULL OR j.status = $1)
      ORDER BY j.created_at DESC`,
@@ -192,7 +193,7 @@ export async function createHrJob(
     const slug = await allocateJobSlug(input.title, client);
     const job = await oneTx<{ id: string; slug: string }>(
       client,
-      `INSERT INTO jobs (
+      `INSERT INTO HRSYSTEM_jobs (
          slug, title, department, description, employment_type, location, work_mode,
          min_experience_years, required_skills, preferred_skills, education_requirement,
          salary_min, salary_max, currency, languages, notice_period_max_days,
@@ -248,7 +249,7 @@ export async function createHrJob(
     if (!job) throw new Error('Failed to create job');
 
     await client.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          job_id, event_type, actor_type, actor_id, actor_label, payload
        ) VALUES ($1, 'JOB_CREATED', 'HR', $2, $3, $4::jsonb)`,
       [job.id, actor.id, actor.name, JSON.stringify({ slug: job.slug, title: input.title })],
@@ -297,7 +298,7 @@ export async function updateHrJob(
   patch: Record<string, unknown>,
   actor: { id: string; name: string },
 ): Promise<HrJobsUpdateResult> {
-  const existing = await one<Job>(`SELECT * FROM jobs WHERE id = $1`, [jobId]);
+  const existing = await one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [jobId]);
   if (!existing) {
     throw Object.assign(new Error('Job not found'), { code: 'NOT_FOUND' });
   }
@@ -313,7 +314,7 @@ export async function updateHrJob(
   const nextStatus = patch.status as JobStatus | undefined;
   if (nextStatus === 'OPEN' && existing.status !== 'OPEN') {
     const qCount = await one<{ count: number }>(
-      `SELECT count(*)::int AS count FROM job_questions WHERE job_id = $1`,
+      `SELECT count(*)::int AS count FROM HRSYSTEM_job_questions WHERE job_id = $1`,
       [jobId],
     );
     if (!qCount || qCount.count < 1) {
@@ -358,13 +359,13 @@ export async function updateHrJob(
 
   await tx(async (client) => {
     await client.query(
-      `UPDATE jobs SET ${sets.join(', ')} WHERE id = $${i}`,
+      `UPDATE HRSYSTEM_jobs SET ${sets.join(', ')} WHERE id = $${i}`,
       params,
     );
 
     const published = nextStatus === 'OPEN' && existing.status !== 'OPEN';
     await client.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          job_id, event_type, actor_type, actor_id, actor_label, payload
        ) VALUES ($1, $2, 'HR', $3, $4, $5::jsonb)`,
       [
@@ -380,11 +381,30 @@ export async function updateHrJob(
   return { job_id: jobId };
 }
 
+export async function deleteHrJob(jobId: string): Promise<HrJobsDeleteResult> {
+  const existing = await one<{ id: string }>(`SELECT id FROM HRSYSTEM_jobs WHERE id = $1`, [jobId]);
+  if (!existing) {
+    throw Object.assign(new Error('Job not found'), { code: 'NOT_FOUND' });
+  }
+
+  await tx(async (client) => {
+    await client.query(
+      `DELETE FROM HRSYSTEM_candidate_assessments
+       WHERE application_id IN (SELECT id FROM HRSYSTEM_applications WHERE job_id = $1)
+          OR assessment_id IN (SELECT id FROM HRSYSTEM_assessments WHERE job_id = $1)`,
+      [jobId],
+    );
+    await client.query(`DELETE FROM HRSYSTEM_jobs WHERE id = $1`, [jobId]);
+  });
+
+  return { job_id: jobId };
+}
+
 export async function replaceJobQuestions(
   jobId: string,
   questions: HrJobsQuestionsSetPayload['questions'],
 ): Promise<HrJobsQuestionsSetResult> {
-  const job = await one<{ id: string }>(`SELECT id FROM jobs WHERE id = $1`, [jobId]);
+  const job = await one<{ id: string }>(`SELECT id FROM HRSYSTEM_jobs WHERE id = $1`, [jobId]);
   if (!job) {
     throw Object.assign(new Error('Job not found'), { code: 'NOT_FOUND' });
   }
@@ -403,10 +423,10 @@ export async function replaceJobQuestions(
   }
 
   return tx(async (client) => {
-    await client.query(`DELETE FROM job_questions WHERE job_id = $1`, [jobId]);
+    await client.query(`DELETE FROM HRSYSTEM_job_questions WHERE job_id = $1`, [jobId]);
     for (const [index, q] of questions.entries()) {
       await client.query(
-        `INSERT INTO job_questions (job_id, order_index, label, key, type, options, is_required)
+        `INSERT INTO HRSYSTEM_job_questions (job_id, order_index, label, key, type, options, is_required)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
         [
           jobId,
@@ -427,7 +447,7 @@ export async function replaceJobAssessment(
   jobId: string,
   input: HrJobsAssessmentSetPayload,
 ): Promise<HrJobsAssessmentSetResult> {
-  const job = await one<{ id: string }>(`SELECT id FROM jobs WHERE id = $1`, [jobId]);
+  const job = await one<{ id: string }>(`SELECT id FROM HRSYSTEM_jobs WHERE id = $1`, [jobId]);
   if (!job) {
     throw Object.assign(new Error('Job not found'), { code: 'NOT_FOUND' });
   }
@@ -443,18 +463,18 @@ export async function replaceJobAssessment(
   return tx(async (client) => {
     // Deactivate previous active paper; keep inactive versions (sittings still reference them).
     await client.query(
-      `UPDATE assessments SET is_active = false
+      `UPDATE HRSYSTEM_assessments SET is_active = false
        WHERE job_id = $1 AND kind = $2 AND is_active = true`,
       [jobId, input.kind],
     );
 
     const assessment = await oneTx<{ id: string }>(
       client,
-      `INSERT INTO assessments (
+      `INSERT INTO HRSYSTEM_assessments (
          job_id, kind, title, instructions, duration_minutes, pass_score,
          require_camera, require_mic, require_fullscreen, rules, is_active
        )
-       VALUES ($1, $2::assessment_kind, $3, $4, $5, $6, $7, $8, $9, $10, true)
+       VALUES ($1, $2::HRSYSTEM_assessment_kind, $3, $4, $5, $6, $7, $8, $9, $10, true)
        RETURNING id`,
       [
         jobId,
@@ -473,7 +493,7 @@ export async function replaceJobAssessment(
 
     for (const [index, q] of input.questions.entries()) {
       await client.query(
-        `INSERT INTO assessment_questions (
+        `INSERT INTO HRSYSTEM_assessment_questions (
            assessment_id, order_index, type, prompt, options, correct_key, language, max_score, rubric
          )
          VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,

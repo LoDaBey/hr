@@ -26,8 +26,8 @@ function clientIp(req: Request): string {
 async function hasActiveTechTest(token: string): Promise<boolean> {
   const row = await one<{ sitting_id: string }>(
     `SELECT ca.id AS sitting_id
-     FROM access_tokens t
-     JOIN candidate_assessments ca ON ca.id = t.candidate_assessment_id
+     FROM HRSYSTEM_access_tokens t
+     JOIN HRSYSTEM_candidate_assessments ca ON ca.id = t.candidate_assessment_id
      WHERE t.token_hash = $1
        AND (t.expires_at IS NULL OR t.expires_at > now())
        AND ca.kind = 'TECH_TEST'

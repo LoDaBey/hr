@@ -93,7 +93,7 @@ node, every stage transition. All of it is now Next.js route handlers. **Delete
 NextAuth Credentials. `authorize()` queries Postgres directly:
 
 ```sql
-SELECT id, email, full_name, role FROM users
+SELECT id, email, full_name, role FROM HRSYSTEM_users
 WHERE email = $1 AND is_active AND password_hash = crypt($2, password_hash);
 ```
 

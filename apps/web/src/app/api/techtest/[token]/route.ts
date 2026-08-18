@@ -30,7 +30,7 @@ export async function GET(
 
     const questions = await query<CandidateQuestion>(
       `SELECT id, order_index, type, prompt, options, language, max_score
-       FROM assessment_questions
+       FROM HRSYSTEM_assessment_questions
        WHERE assessment_id = $1
        ORDER BY order_index ASC, id ASC`,
       [sitting.assessment_id],
@@ -38,7 +38,7 @@ export async function GET(
 
     const answers = await query<{ question_id: string; answer: unknown }>(
       `SELECT question_id, answer
-       FROM assessment_answers
+       FROM HRSYSTEM_assessment_answers
        WHERE candidate_assessment_id = $1`,
       [sitting.sitting_id],
     );

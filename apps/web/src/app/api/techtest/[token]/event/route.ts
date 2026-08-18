@@ -76,7 +76,7 @@ export async function POST(
       for (const ev of parsed.data.events) {
         const inserted = await oneTx<{ id: string }>(
           client,
-          `INSERT INTO proctoring_events (
+          `INSERT INTO HRSYSTEM_proctoring_events (
              candidate_assessment_id, event, severity, occurred_at, metadata, event_id
            ) VALUES ($1, $2, $3, $4::timestamptz, $5::jsonb, $6)
            ON CONFLICT (candidate_assessment_id, event_id) DO NOTHING
@@ -95,10 +95,10 @@ export async function POST(
       }
 
       await client.query(
-        `UPDATE candidate_assessments
+        `UPDATE HRSYSTEM_candidate_assessments
          SET violations_count = (
                SELECT count(*)::int
-               FROM proctoring_events
+               FROM HRSYSTEM_proctoring_events
                WHERE candidate_assessment_id = $1
                  AND severity IN ('WARN', 'CRITICAL')
              ),

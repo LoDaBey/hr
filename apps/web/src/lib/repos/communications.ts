@@ -3,12 +3,12 @@ import { one, query, tx } from '@/lib/db';
 import type { Communication, NewCommunication } from '@/types/domain';
 
 export async function findCommunicationById(id: string): Promise<Communication | null> {
-  return one<Communication>(`SELECT * FROM communications WHERE id = $1`, [id]);
+  return one<Communication>(`SELECT * FROM HRSYSTEM_communications WHERE id = $1`, [id]);
 }
 
 export async function enqueueCommunication(input: NewCommunication): Promise<Communication> {
   const inserted = await one<Communication>(
-    `INSERT INTO communications (
+    `INSERT INTO HRSYSTEM_communications (
        candidate_id, application_id, template_key, to_email,
        subject, variables, dedupe_key, scheduled_for
      )
@@ -29,7 +29,7 @@ export async function enqueueCommunication(input: NewCommunication): Promise<Com
   if (inserted) return inserted;
 
   const existing = await one<Communication>(
-    `SELECT * FROM communications WHERE dedupe_key = $1`,
+    `SELECT * FROM HRSYSTEM_communications WHERE dedupe_key = $1`,
     [input.dedupe_key],
   );
   if (!existing) {
@@ -42,7 +42,7 @@ export async function listCommunicationsByApplication(
   applicationId: string,
 ): Promise<Communication[]> {
   return query<Communication>(
-    `SELECT * FROM communications
+    `SELECT * FROM HRSYSTEM_communications
      WHERE application_id = $1
      ORDER BY created_at DESC`,
     [applicationId],
@@ -52,9 +52,9 @@ export async function listCommunicationsByApplication(
 export async function claimPendingCommunications(limit = 20): Promise<Communication[]> {
   return tx(async (client) => {
     const res = await client.query<Communication>(
-      `UPDATE communications SET attempts = attempts + 1
+      `UPDATE HRSYSTEM_communications SET attempts = attempts + 1
        WHERE id IN (
-         SELECT id FROM communications
+         SELECT id FROM HRSYSTEM_communications
          WHERE status = 'PENDING' AND attempts < 3 AND scheduled_for <= now()
          ORDER BY created_at
          LIMIT $1
@@ -72,7 +72,7 @@ export async function markCommunicationSent(
   gmailMessageId: string,
 ): Promise<Communication | null> {
   return one<Communication>(
-    `UPDATE communications
+    `UPDATE HRSYSTEM_communications
      SET status = 'SENT',
          gmail_message_id = $2,
          sent_at = now(),
@@ -88,9 +88,9 @@ export async function markCommunicationFailed(
   error: string,
 ): Promise<Communication | null> {
   return one<Communication>(
-    `UPDATE communications
+    `UPDATE HRSYSTEM_communications
      SET last_error = $2,
-         status = CASE WHEN attempts >= 3 THEN 'FAILED'::comm_status ELSE status END
+         status = CASE WHEN attempts >= 3 THEN 'FAILED'::HRSYSTEM_comm_status ELSE status END
      WHERE id = $1
      RETURNING *`,
     [id, error],
@@ -111,7 +111,7 @@ export async function listFailedCommunications(limit = 50): Promise<
 > {
   return query(
     `SELECT id, template_key, to_email, subject, last_error, attempts, application_id, created_at
-     FROM communications
+     FROM HRSYSTEM_communications
      WHERE status = 'FAILED'
      ORDER BY created_at DESC
      LIMIT $1`,

@@ -27,7 +27,7 @@ async function expireBatch(
 ): Promise<Array<{ id: string; application_id: string; kind: 'ASSESSMENT' | 'TECH_TEST' }>> {
   return tx(async (client) => {
     const claimed = await client.query<{ id: string }>(
-      `SELECT id FROM candidate_assessments
+      `SELECT id FROM HRSYSTEM_candidate_assessments
        WHERE ${whereSql}
        FOR UPDATE SKIP LOCKED`,
     );
@@ -39,7 +39,7 @@ async function expireBatch(
       application_id: string;
       kind: 'ASSESSMENT' | 'TECH_TEST';
     }>(
-      `UPDATE candidate_assessments
+      `UPDATE HRSYSTEM_candidate_assessments
        SET status = 'EXPIRED', updated_at = now()
        WHERE id = ANY($1::uuid[])
        RETURNING id, application_id, kind`,
@@ -70,28 +70,28 @@ async function runDeadlineMonitor() {
       title: string;
     }>(
       `SELECT a.id, a.stage, a.candidate_id, a.job_id, c.email, c.full_name, j.title
-       FROM applications a
-       JOIN candidates c ON c.id = a.candidate_id
-       JOIN jobs j ON j.id = a.job_id
+       FROM HRSYSTEM_applications a
+       JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+       JOIN HRSYSTEM_jobs j ON j.id = a.job_id
        WHERE a.id = $1`,
       [row.application_id],
     );
     if (!app) continue;
 
     await pool.query(
-      `UPDATE applications
-       SET stage = $2::app_stage, updated_at = now()
+      `UPDATE HRSYSTEM_applications
+       SET stage = $2::HRSYSTEM_app_stage, updated_at = now()
        WHERE id = $1 AND status = 'ACTIVE'`,
       [row.application_id, stage],
     );
 
     await pool.query(
-      `INSERT INTO recruitment_events (
+      `INSERT INTO HRSYSTEM_recruitment_events (
          application_id, candidate_id, job_id, event_type,
          from_stage, to_stage, actor_type, actor_label, payload
        ) VALUES (
          $1, $2, $3, 'ASSESSMENT_EXPIRED',
-         $4::app_stage, $5::app_stage, 'SYSTEM', 'deadline-monitor', $6::jsonb
+         $4::HRSYSTEM_app_stage, $5::HRSYSTEM_app_stage, 'SYSTEM', 'deadline-monitor', $6::jsonb
        )`,
       [
         app.id,
@@ -129,10 +129,10 @@ async function runDeadlineMonitor() {
     }>(
       `SELECT ca.id, ca.application_id, ca.invite_deadline,
               c.email, c.full_name, j.title, a.candidate_id
-       FROM candidate_assessments ca
-       JOIN applications a ON a.id = ca.application_id
-       JOIN candidates c ON c.id = a.candidate_id
-       JOIN jobs j ON j.id = a.job_id
+       FROM HRSYSTEM_candidate_assessments ca
+       JOIN HRSYSTEM_applications a ON a.id = ca.application_id
+       JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+       JOIN HRSYSTEM_jobs j ON j.id = a.job_id
        WHERE ca.status = 'INVITED'
          AND ca.reminder_sent_at IS NULL
          AND ca.invite_deadline BETWEEN now() AND now() + interval '12 hours'
@@ -141,7 +141,7 @@ async function runDeadlineMonitor() {
 
     for (const row of claimed.rows) {
       await client.query(
-        `UPDATE candidate_assessments
+        `UPDATE HRSYSTEM_candidate_assessments
          SET reminder_sent_at = now(), updated_at = now()
          WHERE id = $1`,
         [row.id],

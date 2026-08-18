@@ -4,7 +4,7 @@ import { one } from '@/lib/db';
 import type { AppSettings } from '@/types/domain';
 
 export async function getAppSettings(client?: PoolClient): Promise<AppSettings> {
-  const sql = `SELECT * FROM app_settings WHERE id = true`;
+  const sql = `SELECT * FROM HRSYSTEM_app_settings WHERE id = true`;
   if (client) {
     const res = await client.query<AppSettings>(sql);
     const row = res.rows[0];
@@ -26,7 +26,7 @@ export async function updateAppSettings(
   updatedBy: string,
 ): Promise<AppSettings> {
   const row = await one<AppSettings>(
-    `UPDATE app_settings SET
+    `UPDATE HRSYSTEM_app_settings SET
        auto_send_assessment = COALESCE($1, auto_send_assessment),
        auto_send_assessment_delay_minutes = COALESCE($2, auto_send_assessment_delay_minutes),
        auto_send_techtest = COALESCE($3, auto_send_techtest),

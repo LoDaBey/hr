@@ -41,7 +41,7 @@ export async function POST(
     const result = await tx(async (client) => {
       const times = await oneTx<{ started_at: string; expires_at: string }>(
         client,
-        `UPDATE candidate_assessments
+        `UPDATE HRSYSTEM_candidate_assessments
          SET status = 'STARTED',
              started_at = COALESCE(started_at, now()),
              expires_at = COALESCE(
@@ -60,21 +60,21 @@ export async function POST(
 
       if (sitting.stage !== 'TECH_ASSESSMENT_STARTED') {
         await client.query(
-          `UPDATE applications
-           SET stage = 'TECH_ASSESSMENT_STARTED'::app_stage, updated_at = now()
+          `UPDATE HRSYSTEM_applications
+           SET stage = 'TECH_ASSESSMENT_STARTED'::HRSYSTEM_app_stage, updated_at = now()
            WHERE id = $1`,
           [sitting.application_id],
         );
 
         await client.query(
-          `INSERT INTO recruitment_events (
+          `INSERT INTO HRSYSTEM_recruitment_events (
              application_id, candidate_id, job_id, event_type,
              from_stage, to_stage, actor_type, actor_label, payload
            )
            SELECT a.id, a.candidate_id, a.job_id, 'ASSESSMENT_STARTED',
-                  $2::app_stage, 'TECH_ASSESSMENT_STARTED'::app_stage,
+                  $2::HRSYSTEM_app_stage, 'TECH_ASSESSMENT_STARTED'::HRSYSTEM_app_stage,
                   'CANDIDATE', $3, $4::jsonb
-           FROM applications a
+           FROM HRSYSTEM_applications a
            WHERE a.id = $1`,
           [
             sitting.application_id,
