@@ -375,6 +375,12 @@ export interface HrCandidatesGetPayload {
   application_id: string;
 }
 
+export interface HrCandidatesDeleteResult {
+  application_id: string;
+  candidate_id: string;
+  candidate_deleted: boolean;
+}
+
 export interface HrCandidatesGetResult {
   candidate: Candidate;
   application: Application;

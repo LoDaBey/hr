@@ -51,8 +51,10 @@ export function signUpload(kind: 'cv' | 'video'): CloudinarySignatureResult {
 
 /**
  * Time-limited download URL for authenticated/private assets.
- * Uses Cloudinary's `/download` API (same signing as uploads), not the
- * transformation `s--sig--` path — authenticated raw files require this.
+ * Uses Cloudinary's `/download` API (same signing as uploads).
+ *
+ * Raw files keep the extension in `public_id` (e.g. `folder/cv_abc.pdf`).
+ * Images and videos use `public_id` + separate `format`.
  */
 export function signedDeliveryUrl(
   publicId: string,
@@ -65,13 +67,27 @@ export function signedDeliveryUrl(
   const timestamp = Math.floor(Date.now() / 1000);
   const expiresAt = timestamp + DELIVERY_TTL_SECONDS;
   const extension = (format || '').replace(/^\./, '').toLowerCase();
+  const type = resourceType === 'video' ? 'video' : resourceType === 'image' ? 'image' : 'raw';
+
+  let id = publicId;
   const params: Record<string, string | number> = {
     timestamp,
-    public_id: publicId,
     type: 'authenticated',
     expires_at: expiresAt,
   };
-  if (extension) params.format = extension;
+
+  if (type === 'raw') {
+    if (extension && !id.toLowerCase().endsWith(`.${extension}`)) {
+      id = `${id}.${extension}`;
+    }
+    params.public_id = id;
+  } else {
+    if (extension && id.toLowerCase().endsWith(`.${extension}`)) {
+      id = id.slice(0, -(extension.length + 1));
+    }
+    params.public_id = id;
+    if (extension) params.format = extension;
+  }
 
   const signature = signUploadParams(params, secret);
   const query = new URLSearchParams();
@@ -81,7 +97,6 @@ export function signedDeliveryUrl(
   query.set('signature', signature);
   query.set('api_key', apiKey);
 
-  const type = resourceType === 'video' ? 'video' : resourceType === 'image' ? 'image' : 'raw';
   const url = `https://api.cloudinary.com/v1_1/${cloudName}/${type}/download?${query.toString()}`;
   return { url, expires_in: DELIVERY_TTL_SECONDS };
 }

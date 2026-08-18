@@ -122,11 +122,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         );
       } else {
         try {
-          let publicId = document.public_id;
-          if (format && publicId.toLowerCase().endsWith(`.${format}`)) {
-            publicId = publicId.slice(0, -(format.length + 1));
-          }
-          const { url } = signedDeliveryUrl(publicId, document.resource_type, format);
+          const { url } = signedDeliveryUrl(document.public_id, document.resource_type, format);
           const result = await runAutomation<CvParseData>('cv.parse', { cv_url: url });
           if (result.ok) {
             parsed = asRecord(result.data.parsed);

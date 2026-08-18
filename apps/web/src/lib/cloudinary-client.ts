@@ -264,11 +264,8 @@ export async function uploadSigned(
     throw new Error(json.error?.message ?? 'Upload failed');
   }
 
-  let publicId = json.public_id;
+  const publicId = json.public_id;
   const format = (json.format ?? ext).toLowerCase();
-  if (format && publicId.toLowerCase().endsWith(`.${format}`)) {
-    publicId = publicId.slice(0, -(format.length + 1));
-  }
 
   return {
     public_id: publicId,

@@ -1,7 +1,9 @@
 'use client';
 
+import { useCallback } from 'react';
 import useSWR from 'swr';
-import type { HrCandidatesListResult } from '@/types/api';
+import { useApi } from '@/hooks/useApi';
+import type { HrCandidatesDeleteResult, HrCandidatesListResult } from '@/types/api';
 
 export type HrCandidatesQuery = {
   job_id?: string | null;
@@ -33,4 +35,15 @@ export function useHrCandidates(query: HrCandidatesQuery) {
 
 export function hrCandidatesKey(query: HrCandidatesQuery): string {
   return buildKey(query);
+}
+
+export function useDeleteHrCandidate() {
+  const request = useApi();
+  return useCallback(
+    (applicationId: string) =>
+      request<HrCandidatesDeleteResult>(`/api/hr/candidates/${applicationId}`, {
+        method: 'DELETE',
+      }),
+    [request],
+  );
 }
