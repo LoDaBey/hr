@@ -35,7 +35,7 @@ function findPendingInvite(
   sittingId: string | undefined,
 ): Communication | null {
   if (!sittingId) return null;
-  const pending = HRSYSTEM_communications.find(
+  const pending = communications.find(
     (c) =>
       c.template_key === 'TECHTEST_INVITE' &&
       c.status === 'PENDING' &&

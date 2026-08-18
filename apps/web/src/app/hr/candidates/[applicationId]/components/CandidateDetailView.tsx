@@ -146,9 +146,9 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
     application.stage === 'SECOND_FINAL_INTERVIEW';
   const showComplete =
     application.stage === 'FINAL_INTERVIEW_SCHEDULED' &&
-    HRSYSTEM_interviews.some((i) => i.status === 'SCHEDULED');
+    interviews.some((i) => i.status === 'SCHEDULED');
   const showFinalDecision = application.stage === 'FINAL_INTERVIEW_COMPLETED';
-  const openInterview = HRSYSTEM_interviews.find((i) => i.status === 'SCHEDULED');
+  const openInterview = interviews.find((i) => i.status === 'SCHEDULED');
 
   return (
     <Stack gap={density.sectionGap}>
@@ -365,10 +365,10 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
       ) : null}
 
       <Section title="Emails">
-        {HRSYSTEM_communications.length === 0 ? (
+        {communications.length === 0 ? (
           <Text c="dimmed">No emails queued for this candidate yet.</Text>
         ) : (
-          HRSYSTEM_communications.map((c) => (
+          communications.map((c) => (
             <Group key={c.id} justify="space-between">
               <div>
                 <Text fw={500}>

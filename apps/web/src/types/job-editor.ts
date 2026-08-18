@@ -16,7 +16,7 @@ export type QuestionDraft = {
   options: string[];
 };
 
-/** Question shapes remembered in localStorage for reuse on new HRSYSTEM_jobs. */
+/** Question shapes remembered in localStorage for reuse on new jobs. */
 export type SavedQuestionTemplate = {
   id: string;
   label: string;

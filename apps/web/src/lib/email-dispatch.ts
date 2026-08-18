@@ -76,7 +76,7 @@ async function dispatchOne(row: Communication): Promise<'sent' | 'failed'> {
   }
 }
 
-/** Claim and send a batch of PENDING HRSYSTEM_communications. Never throws on a single bad row. */
+/** Claim and send a batch of PENDING communications. Never throws on a single bad row. */
 export async function dispatchPendingEmails(limit = 20): Promise<EmailDispatchResult> {
   const claimed = await claimPendingCommunications(limit);
   let sent = 0;

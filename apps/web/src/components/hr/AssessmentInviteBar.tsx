@@ -35,7 +35,7 @@ function findPendingInvite(
 ): Communication | null {
   if (!sittingId) return null;
   const dedupe = `${sittingId}`;
-  const pending = HRSYSTEM_communications.find(
+  const pending = communications.find(
     (c) =>
       c.template_key === 'ASSESSMENT_INVITE' &&
       c.status === 'PENDING' &&
