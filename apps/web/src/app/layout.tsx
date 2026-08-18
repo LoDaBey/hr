@@ -21,7 +21,7 @@ const body = IBM_Plex_Sans({
   display: 'swap',
 });
 
-export const metadata = { title: 'Careers' };
+export const metadata = { title: 'Hiring' };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

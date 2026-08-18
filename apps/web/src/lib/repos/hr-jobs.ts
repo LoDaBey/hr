@@ -337,7 +337,9 @@ export async function updateHrJob(
       key === 'screening_weights' ||
       key === 'languages'
     ) {
-      value = JSON.stringify(value ?? (key === 'languages' ? {} : []));
+      value = JSON.stringify(
+        value ?? (key === 'languages' || key === 'screening_weights' ? {} : []),
+      );
       sets.push(`${key} = $${i}::jsonb`);
     } else if (key === 'required_skills' || key === 'preferred_skills') {
       sets.push(`${key} = $${i}`);

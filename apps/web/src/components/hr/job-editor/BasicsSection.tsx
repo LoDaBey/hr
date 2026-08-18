@@ -1,8 +1,6 @@
 'use client';
 
 import {
-  Button,
-  Collapse,
   Group,
   MultiSelect,
   NumberInput,
@@ -14,7 +12,6 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import type { UseFormReturnType } from '@mantine/form';
-import { useState } from 'react';
 import { CheckboxReveal } from '@/components/hr/job-editor/CheckboxReveal';
 import { EMPLOYMENT_TYPE, JOB_CURRENCY, JOB_DEPARTMENT, WORK_MODE, selectOptions, withCurrentSelectOption } from '@/lib/labels';
 import type {
@@ -39,9 +36,6 @@ export function BasicsSection({
 }) {
   const showRole = parts?.role !== false;
   const showApplication = parts?.application !== false;
-  const showAdvanced = parts?.advanced !== false;
-
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const askAge = form.values.ask_age;
   const askMilitary = form.values.ask_military_status;
   const askMarital = form.values.ask_marital_status;
@@ -364,34 +358,6 @@ export function BasicsSection({
             />
           </CheckboxReveal>
         </>
-      ) : null}
-
-      {showAdvanced ? (
-        <div>
-          <Button
-            className="cursor-pointer rounded-lg"
-            aria-label={advancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
-            variant="subtle"
-            size="compact-sm"
-            onClick={() => setAdvancedOpen((open) => !open)}
-          >
-            {advancedOpen ? 'Hide advanced' : 'Advanced'}
-          </Button>
-          <Collapse expanded={advancedOpen}>
-            <NumberInput
-              className="rounded outline-none"
-              mt="sm"
-              label="Shortlist threshold"
-              aria-label="Shortlist threshold"
-              description="Score at or above this is suggested for shortlist. You always decide."
-              {...form.getInputProps('shortlist_threshold')}
-              onChange={(value) => {
-                form.setFieldValue('shortlist_threshold', value);
-                onDirty();
-              }}
-            />
-          </Collapse>
-        </div>
       ) : null}
     </Stack>
   );

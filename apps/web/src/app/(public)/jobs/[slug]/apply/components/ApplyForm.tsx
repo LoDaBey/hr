@@ -1,18 +1,20 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Paper, Stack, Text, Title } from '@mantine/core';
+import { Paper, Stack } from '@mantine/core';
 import { schemaResolver, useForm } from '@mantine/form';
 import dayjs from 'dayjs';
 import { z } from 'zod';
 import { CvUpload } from '@/components/CvUpload';
+import { MotionButton } from '@/components/MotionButton';
 import { ApiError } from '@/lib/api';
-import { EMPLOYMENT_TYPE, WORK_MODE, labelOf } from '@/lib/labels';
 import { useSubmitApplication } from '@/hooks/useSubmitApplication';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
 import type { ApplicationCvInput, PublicJobDetail, PublicJobQuestion } from '@/types/api';
+import { ApplyFormBlock } from './ApplyFormBlock';
+import { ApplyHeader } from './ApplyHeader';
 import { PersonalFields } from './PersonalFields';
 import { ProfessionalFields } from './ProfessionalFields';
 import { QuestionFields } from './QuestionFields';
@@ -113,15 +115,6 @@ function defaultAnswers(questions: PublicJobQuestion[]): Record<string, unknown>
   return answers;
 }
 
-function FormBlock({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Stack gap="md">
-      <Title order={3}>{title}</Title>
-      {children}
-    </Stack>
-  );
-}
-
 export function ApplyForm({
   job,
   questions,
@@ -131,7 +124,7 @@ export function ApplyForm({
 }) {
   const router = useRouter();
   const submitApplication = useSubmitApplication();
-  const idempotencyKey = useRef(crypto.randomUUID());
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [cv, setCv] = useState<ApplicationCvInput | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -175,7 +168,7 @@ export function ApplyForm({
 
     try {
       await submitApplication({
-        idempotency_key: idempotencyKey.current,
+        idempotency_key: idempotencyKey,
         job_id: job.id,
         candidate: {
           full_name: values.candidate.full_name,
@@ -227,56 +220,45 @@ export function ApplyForm({
     }
   }
 
-  const contextLine = [
-    job.department,
-    job.location,
-    job.work_mode ? labelOf(WORK_MODE, job.work_mode) : null,
-    job.employment_type ? labelOf(EMPLOYMENT_TYPE, job.employment_type) : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
   return (
-    <Stack gap={density.sectionGap}>
-      <Stack gap="xs">
-        <Title order={1}>{job.title}</Title>
-        <Text c="dimmed" size="sm">
-          {contextLine || 'Complete the form below to apply. Fields marked required must be filled in.'}
-        </Text>
-      </Stack>
+    <Stack gap={40}>
+      <ApplyHeader job={job} />
 
       <Paper
-        withBorder
-        p="lg"
-        radius={density.defaultRadius}
-        style={{ borderColor: `${palette.ink}14` }}
+        p={{ base: 'md', sm: 'xl' }}
+        radius="lg"
+        shadow="md"
+        style={{
+          background: '#FFFFFF',
+          border: `1px solid ${palette.ink}12`,
+        }}
       >
         <form onSubmit={form.onSubmit(handleSubmit)}>
           <Stack gap={density.sectionGap}>
-            <FormBlock title="Personal">
+            <ApplyFormBlock title="Personal">
               <PersonalFields form={form} job={job} />
-            </FormBlock>
+            </ApplyFormBlock>
 
-            <FormBlock title="Professional">
+            <ApplyFormBlock title="Professional">
               <ProfessionalFields form={form} />
-            </FormBlock>
+            </ApplyFormBlock>
 
             {questions.length > 0 ? (
-              <FormBlock title="Questions">
+              <ApplyFormBlock title="Questions">
                 <QuestionFields form={form} questions={questions} />
-              </FormBlock>
+              </ApplyFormBlock>
             ) : null}
 
-            <FormBlock title="CV">
+            <ApplyFormBlock title="CV">
               <CvUpload
                 required={job.cv_required}
                 value={cv}
                 onChange={setCv}
                 onUploadingChange={setUploading}
               />
-            </FormBlock>
+            </ApplyFormBlock>
 
-            <Button
+            <MotionButton
               type="submit"
               className="cursor-pointer rounded-lg"
               aria-label={`Submit application for ${job.title}`}
@@ -284,7 +266,7 @@ export function ApplyForm({
               disabled={uploading || submitting || (job.cv_required && !cv)}
             >
               Submit application
-            </Button>
+            </MotionButton>
           </Stack>
         </form>
       </Paper>
