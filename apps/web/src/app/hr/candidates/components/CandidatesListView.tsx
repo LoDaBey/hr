@@ -30,6 +30,7 @@ import { useHrCandidates } from '@/hooks/useHrCandidates';
 import { useHrJobs } from '@/hooks/useHrJobs';
 import { density } from '@/theme';
 import type { Recommendation, Stage, Status } from '@/types/domain';
+import { CandidateRowActions } from './CandidateRowActions';
 
 const pageSize = 20;
 
@@ -65,7 +66,7 @@ export function CandidatesListView() {
     [jobId, stage, status, q, minScore, minExperience, page],
   );
 
-  const { data, error, isLoading } = useHrCandidates(query);
+  const { data, error, isLoading, mutate } = useHrCandidates(query);
   const { data: jobsData } = useHrJobs();
 
   const setParams = useCallback(
@@ -223,6 +224,17 @@ export function CandidatesListView() {
               accessor: 'created_at',
               title: 'Applied',
               render: (row) => datetime(row.created_at),
+            },
+            {
+              accessor: 'actions',
+              title: 'Actions',
+              render: (row) => (
+                <CandidateRowActions
+                  applicationId={row.application_id}
+                  fullName={row.full_name}
+                  onDeleted={() => void mutate()}
+                />
+              ),
             },
           ]}
           totalRecords={data?.total ?? 0}

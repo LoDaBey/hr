@@ -1,8 +1,9 @@
 import 'server-only';
-import { one, query } from '@/lib/db';
+import { one, query, tx } from '@/lib/db';
 import { signedDeliveryUrl } from '@/lib/cloudinary';
 import type {
   HrCandidateListRow,
+  HrCandidatesDeleteResult,
   HrCandidatesGetResult,
   HrCandidatesListResult,
 } from '@/types/api';
@@ -529,3 +530,37 @@ export async function getHrCandidateDetail(
     job_has_techtest: Boolean(techtestConfigured),
   };
 }
+
+export async function deleteHrCandidateApplication(
+  applicationId: string,
+): Promise<HrCandidatesDeleteResult> {
+  const row = await one<{ id: string; candidate_id: string }>(
+    `SELECT id, candidate_id FROM HRSYSTEM_applications WHERE id = $1`,
+    [applicationId],
+  );
+  if (!row) {
+    throw Object.assign(new Error('Application not found'), { code: 'NOT_FOUND' });
+  }
+
+  const candidateDeleted = await tx(async (client) => {
+    await client.query(
+      `DELETE FROM HRSYSTEM_candidate_assessments WHERE application_id = $1`,
+      [applicationId],
+    );
+    await client.query(`DELETE FROM HRSYSTEM_applications WHERE id = $1`, [applicationId]);
+    const leftover = await client.query<{ remaining: number }>(
+      `SELECT count(*)::int AS remaining FROM HRSYSTEM_applications WHERE candidate_id = $1`,
+      [row.candidate_id],
+    );
+    if ((leftover.rows[0]?.remaining ?? 0) > 0) return false;
+    await client.query(`DELETE FROM HRSYSTEM_candidates WHERE id = $1`, [row.candidate_id]);
+    return true;
+  });
+
+  return {
+    application_id: applicationId,
+    candidate_id: row.candidate_id,
+    candidate_deleted: candidateDeleted,
+  };
+}
+

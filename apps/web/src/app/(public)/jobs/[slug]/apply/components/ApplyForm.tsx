@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Paper, Stack } from '@mantine/core';
+import { Button, Paper, Stack } from '@mantine/core';
 import { schemaResolver, useForm } from '@mantine/form';
 import dayjs from 'dayjs';
 import { z } from 'zod';
 import { CvUpload } from '@/components/CvUpload';
-import { MotionButton } from '@/components/MotionButton';
 import { ApiError } from '@/lib/api';
 import { useSubmitApplication } from '@/hooks/useSubmitApplication';
 import { toastError, toastSuccess } from '@/lib/toast';
@@ -258,7 +257,7 @@ export function ApplyForm({
               />
             </ApplyFormBlock>
 
-            <MotionButton
+            <Button
               type="submit"
               className="cursor-pointer rounded-lg"
               aria-label={`Submit application for ${job.title}`}
@@ -266,7 +265,7 @@ export function ApplyForm({
               disabled={uploading || submitting || (job.cv_required && !cv)}
             >
               Submit application
-            </MotionButton>
+            </Button>
           </Stack>
         </form>
       </Paper>
