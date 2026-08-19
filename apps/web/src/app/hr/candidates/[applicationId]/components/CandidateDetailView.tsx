@@ -1,9 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Alert,
   Badge,
-  Code,
   Group,
   Loader,
   Paper,
@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { CandidateRowActions } from '../../components/CandidateRowActions';
 import { FinalDecisionBar } from './FinalDecisionBar';
 import { InterviewCompleteForm } from './InterviewCompleteForm';
+import { ParsedCvSummary } from './ParsedCvSummary';
 import { ScheduleForm } from '@/app/hr/interviews/components/ScheduleForm';
 import { ErrorState } from '@/components/ErrorState';
 import { MotionButton } from '@/components/MotionButton';
@@ -86,6 +87,7 @@ function Section({
 export function CandidateDetailView({ applicationId }: { applicationId: string }) {
   const router = useRouter();
   const { data, error, isLoading, mutate } = useHrCandidate(applicationId);
+  const [rescreening, setRescreening] = useState(false);
 
   async function retryEmail(communicationId: string) {
     try {
@@ -94,6 +96,19 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
       await mutate();
     } catch (err) {
       toastError(err instanceof Error ? err.message : 'Retry failed');
+    }
+  }
+
+  async function rerunScreening() {
+    setRescreening(true);
+    try {
+      await api(`/api/hr/candidates/${applicationId}/rescreen`, { method: 'POST' });
+      toastSuccess('Screening queued — refresh in a moment');
+      setTimeout(() => void mutate(), 5000);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Re-screen failed');
+    } finally {
+      setRescreening(false);
     }
   }
 
@@ -287,9 +302,10 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
             </Group>
             <Text fw={600}>Extracted from CV</Text>
             {cv.parsed ? (
-              <Code block style={{ whiteSpace: 'pre-wrap' }}>
-                {JSON.stringify(cv.parsed, null, 2)}
-              </Code>
+              <ParsedCvSummary
+                parsed={cv.parsed as import('./ParsedCvSummary').ParsedCv}
+                raw={cv.parsed}
+              />
             ) : (
               <Text c="dimmed">No parsed summary yet.</Text>
             )}
@@ -302,15 +318,28 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
       <Section title="AI recommendation — not a decision">
         {screening ? (
           <>
-            <Group>
-              <Text>Score: {screening.score ?? '—'}</Text>
-              <Badge color="accent" variant="light">
-                {labelOf(RECOMMENDATION, screening.recommendation as Recommendation | null)}
-              </Badge>
-              <Text size="sm">Confidence: {screening.confidence ?? '—'}</Text>
-              {screening.hr_decision ? (
-                <Badge color="accent">HR: {labelOf(HR_DECISION, screening.hr_decision)}</Badge>
-              ) : null}
+            <Group justify="space-between" wrap="wrap">
+              <Group gap="sm" wrap="wrap">
+                <Text>Score: {screening.score ?? '—'}</Text>
+                <Badge color="accent" variant="light">
+                  {labelOf(RECOMMENDATION, screening.recommendation as Recommendation | null)}
+                </Badge>
+                <Text size="sm">Confidence: {screening.confidence ?? '—'}</Text>
+                {screening.hr_decision ? (
+                  <Badge color="accent">HR: {labelOf(HR_DECISION, screening.hr_decision)}</Badge>
+                ) : null}
+              </Group>
+              <MotionButton
+                size="xs"
+                variant="light"
+                color="ink"
+                className="cursor-pointer rounded-lg"
+                aria-label="Re-run AI screening for this candidate"
+                loading={rescreening}
+                onClick={() => void rerunScreening()}
+              >
+                Re-run screening
+              </MotionButton>
             </Group>
             {screening.reasoning_summary ? <Text>{screening.reasoning_summary}</Text> : null}
             <Text size="sm">Strengths: {answerDisplay(screening.strengths)}</Text>
@@ -318,9 +347,24 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
             <Text size="sm">Missing: {answerDisplay(screening.missing_requirements)}</Text>
           </>
         ) : (
-          <Alert color="ink" variant="light">
-            Screening has not completed yet. Refresh shortly, or review the CV manually.
-          </Alert>
+          <>
+            <Alert color="ink" variant="light">
+              Screening has not completed yet. Refresh shortly, or review the CV manually.
+            </Alert>
+            <Group>
+              <MotionButton
+                size="xs"
+                variant="light"
+                color="accent"
+                className="cursor-pointer rounded-lg"
+                aria-label="Re-run AI screening for this candidate"
+                loading={rescreening}
+                onClick={() => void rerunScreening()}
+              >
+                Re-run screening
+              </MotionButton>
+            </Group>
+          </>
         )}
       </Section>
 
