@@ -141,6 +141,92 @@ export function SettingsView() {
           </Group>
         </Stack>
 
+        <Stack gap="sm">
+          <Text fw={600} style={{ color: palette.ink }}>
+            Automatic screening decisions
+          </Text>
+          <Text size="sm" c="dimmed">
+            Strong and weak candidates move forward or out without a click. Middling scores
+            stay in Needs your review. Per-job shortlist threshold overrides the default
+            minimum score below.
+          </Text>
+          <Switch
+            checked={values.auto_shortlist_enabled}
+            onChange={(e) =>
+              setDraft((prev) => ({
+                ...prev,
+                auto_shortlist_enabled: e.currentTarget.checked,
+              }))
+            }
+            label="Auto-shortlist strong matches"
+            color="accent"
+          />
+          <Group gap="xs" align="center" wrap="wrap">
+            <Text size="sm">Default minimum score (overridden by each job&apos;s threshold)</Text>
+            <NumberInput
+              className="rounded outline-none"
+              aria-label="Default auto-shortlist minimum score"
+              value={values.auto_shortlist_min_score}
+              onChange={(v) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  auto_shortlist_min_score: typeof v === 'number' ? v : 75,
+                }))
+              }
+              min={0}
+              max={100}
+              w={100}
+            />
+          </Group>
+          <Group gap="xs" align="center" wrap="wrap">
+            <Text size="sm">Minimum confidence</Text>
+            <NumberInput
+              className="rounded outline-none"
+              aria-label="Auto-shortlist minimum confidence"
+              value={values.auto_shortlist_min_confidence}
+              onChange={(v) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  auto_shortlist_min_confidence: typeof v === 'number' ? v : 0.75,
+                }))
+              }
+              min={0}
+              max={1}
+              step={0.05}
+              decimalScale={2}
+              w={100}
+            />
+          </Group>
+          <Switch
+            checked={values.auto_reject_hard_fail}
+            onChange={(e) =>
+              setDraft((prev) => ({
+                ...prev,
+                auto_reject_hard_fail: e.currentTarget.checked,
+              }))
+            }
+            label="Auto-reject hard requirement failures"
+            color="accent"
+          />
+          <Group gap="xs" align="center" wrap="wrap">
+            <Text size="sm">Auto-reject when score is at or below</Text>
+            <NumberInput
+              className="rounded outline-none"
+              aria-label="Auto-reject maximum score"
+              value={values.auto_reject_max_score}
+              onChange={(v) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  auto_reject_max_score: typeof v === 'number' ? v : 40,
+                }))
+              }
+              min={0}
+              max={100}
+              w={100}
+            />
+          </Group>
+        </Stack>
+
         <MotionButton
           className="cursor-pointer rounded-lg"
           aria-label="Save settings"

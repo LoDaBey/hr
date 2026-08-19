@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import {
   Alert,
   Badge,
@@ -9,7 +8,6 @@ import {
   Paper,
   Stack,
   Text,
-  Timeline,
   Title,
 } from '@mantine/core';
 import { AssessmentInviteBar } from '@/components/hr/AssessmentInviteBar';
@@ -19,28 +17,22 @@ import { TechTestInviteBar } from '@/components/hr/TechTestInviteBar';
 import { TechTestReview } from '@/components/hr/TechTestReview';
 import { useRouter } from 'next/navigation';
 import { CandidateRowActions } from '../../components/CandidateRowActions';
+import { ApplicationAnswersSection } from './ApplicationAnswersSection';
+import { CandidateEmailsSection } from './CandidateEmailsSection';
+import { CandidateTimelineSection } from './CandidateTimelineSection';
 import { FinalDecisionBar } from './FinalDecisionBar';
 import { InterviewCompleteForm } from './InterviewCompleteForm';
 import { ParsedCvSummary } from './ParsedCvSummary';
+import { ScreeningResultSection } from './ScreeningResultSection';
 import { ScheduleForm } from '@/app/hr/interviews/components/ScheduleForm';
 import { ErrorState } from '@/components/ErrorState';
 import { MotionButton } from '@/components/MotionButton';
 import { StageRail } from '@/components/StageRail';
-import { api } from '@/lib/api';
 import { datetime } from '@/lib/format';
-import {
-  COMM_STATUS,
-  HR_DECISION,
-  PARSE_STATUS,
-  RECOMMENDATION,
-  STATUS,
-  labelOf,
-  stageLabel,
-} from '@/lib/labels';
+import { labelOf, stageLabel, STATUS } from '@/lib/labels';
 import { useHrCandidate } from '@/hooks/useHrCandidate';
-import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
-import type { CommStatus, Recommendation, Stage, Status } from '@/types/domain';
+import type { Stage, Status } from '@/types/domain';
 
 const ASSESSMENT_INVITE_STAGES: Stage[] = [
   'INITIAL_SHORTLISTED',
@@ -53,14 +45,6 @@ const TECHTEST_INVITE_STAGES: Stage[] = [
   'RECORDED_TECH_INVITED',
   'RECORDED_TECH_STARTED',
 ];
-
-function answerDisplay(value: unknown): string {
-  if (value == null) return '—';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  return JSON.stringify(value);
-}
 
 function Section({
   title,
@@ -84,33 +68,17 @@ function Section({
   );
 }
 
+function parseStatusMessage(status: string): string | null {
+  if (status === 'DONE') return null;
+  if (status === 'FAILED') return 'Could not read this CV — open the file';
+  if (status === 'PENDING') return 'Reading CV…';
+  if (status === 'MANUAL') return 'CV needs manual review';
+  return null;
+}
+
 export function CandidateDetailView({ applicationId }: { applicationId: string }) {
   const router = useRouter();
   const { data, error, isLoading, mutate } = useHrCandidate(applicationId);
-  const [rescreening, setRescreening] = useState(false);
-
-  async function retryEmail(communicationId: string) {
-    try {
-      await api(`/api/hr/emails/${communicationId}/retry`, { method: 'POST' });
-      toastSuccess('Email queued for retry');
-      await mutate();
-    } catch (err) {
-      toastError(err instanceof Error ? err.message : 'Retry failed');
-    }
-  }
-
-  async function rerunScreening() {
-    setRescreening(true);
-    try {
-      await api(`/api/hr/candidates/${applicationId}/rescreen`, { method: 'POST' });
-      toastSuccess('Screening queued — refresh in a moment');
-      setTimeout(() => void mutate(), 5000);
-    } catch (err) {
-      toastError(err instanceof Error ? err.message : 'Re-screen failed');
-    } finally {
-      setRescreening(false);
-    }
-  }
 
   if (isLoading) {
     return (
@@ -126,8 +94,19 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
     );
   }
 
-  const { candidate, application, job, answers, cv, screening, assessment, techtest, interviews, communications, timeline } =
-    data;
+  const {
+    candidate,
+    application,
+    job,
+    application_answers,
+    cv,
+    screening,
+    assessment,
+    techtest,
+    interviews,
+    communications,
+    timeline,
+  } = data;
   const showAssessmentInvite = ASSESSMENT_INVITE_STAGES.includes(application.stage);
   const showTechTestInvite = TECHTEST_INVITE_STAGES.includes(application.stage);
   const assessmentAutoSkipped = timeline.some(
@@ -152,6 +131,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
     interviews.some((i) => i.status === 'SCHEDULED');
   const showFinalDecision = application.stage === 'FINAL_INTERVIEW_COMPLETED';
   const openInterview = interviews.find((i) => i.status === 'SCHEDULED');
+  const cvStatusMessage = cv ? parseStatusMessage(cv.parse_status) : null;
 
   return (
     <Stack gap={density.sectionGap}>
@@ -260,23 +240,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
       )}
 
       <Section title="Application answers">
-        {answers.length === 0 ? (
-          <Text c="dimmed">No answers recorded. Ask the candidate to re-apply if this looks wrong.</Text>
-        ) : (
-          answers.map((a) => (
-            <Group key={a.question_key} align="flex-start" wrap="nowrap">
-              <Text fw={600} w={220}>
-                {a.label}
-              </Text>
-              <Text style={{ whiteSpace: 'pre-wrap' }}>{answerDisplay(a.answer)}</Text>
-            </Group>
-          ))
-        )}
-        <Group gap="lg">
-          <Text size="sm">Experience: {application.years_experience ?? '—'} years</Text>
-          <Text size="sm">Expected salary: {application.expected_salary ?? '—'}</Text>
-          <Text size="sm">Notice: {application.notice_period_days ?? '—'} days</Text>
-        </Group>
+        <ApplicationAnswersSection answers={application_answers} />
       </Section>
 
       <Section title="CV">
@@ -285,27 +249,26 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
             <Group>
               <MotionButton
                 component="a"
-                href={cv.signed_url}
+                href={`/api/hr/candidates/${application.id}/cv`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="cursor-pointer rounded-lg"
-                aria-label={`Open CV ${cv.original_name}`}
+                aria-label="Open CV"
               >
-                Open CV ({cv.original_name})
+                Open CV
               </MotionButton>
-              <Badge color="ink" variant="light">
-                {labelOf(PARSE_STATUS, cv.parse_status)}
-              </Badge>
               <Text size="sm" c="dimmed">
-                Link expires in {cv.expires_in}s
+                {cv.original_name}
               </Text>
+              {cvStatusMessage ? (
+                <Badge color="warning" variant="light">
+                  {cvStatusMessage}
+                </Badge>
+              ) : null}
             </Group>
             <Text fw={600}>Extracted from CV</Text>
             {cv.parsed ? (
-              <ParsedCvSummary
-                parsed={cv.parsed as import('./ParsedCvSummary').ParsedCv}
-                raw={cv.parsed}
-              />
+              <ParsedCvSummary parsed={cv.parsed as import('./ParsedCvSummary').ParsedCv} />
             ) : (
               <Text c="dimmed">No parsed summary yet.</Text>
             )}
@@ -315,57 +278,8 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         )}
       </Section>
 
-      <Section title="AI recommendation — not a decision">
-        {screening ? (
-          <>
-            <Group justify="space-between" wrap="wrap">
-              <Group gap="sm" wrap="wrap">
-                <Text>Score: {screening.score ?? '—'}</Text>
-                <Badge color="accent" variant="light">
-                  {labelOf(RECOMMENDATION, screening.recommendation as Recommendation | null)}
-                </Badge>
-                <Text size="sm">Confidence: {screening.confidence ?? '—'}</Text>
-                {screening.hr_decision ? (
-                  <Badge color="accent">HR: {labelOf(HR_DECISION, screening.hr_decision)}</Badge>
-                ) : null}
-              </Group>
-              <MotionButton
-                size="xs"
-                variant="light"
-                color="ink"
-                className="cursor-pointer rounded-lg"
-                aria-label="Re-run AI screening for this candidate"
-                loading={rescreening}
-                onClick={() => void rerunScreening()}
-              >
-                Re-run screening
-              </MotionButton>
-            </Group>
-            {screening.reasoning_summary ? <Text>{screening.reasoning_summary}</Text> : null}
-            <Text size="sm">Strengths: {answerDisplay(screening.strengths)}</Text>
-            <Text size="sm">Weaknesses: {answerDisplay(screening.weaknesses)}</Text>
-            <Text size="sm">Missing: {answerDisplay(screening.missing_requirements)}</Text>
-          </>
-        ) : (
-          <>
-            <Alert color="ink" variant="light">
-              Screening has not completed yet. Refresh shortly, or review the CV manually.
-            </Alert>
-            <Group>
-              <MotionButton
-                size="xs"
-                variant="light"
-                color="accent"
-                className="cursor-pointer rounded-lg"
-                aria-label="Re-run AI screening for this candidate"
-                loading={rescreening}
-                onClick={() => void rerunScreening()}
-              >
-                Re-run screening
-              </MotionButton>
-            </Group>
-          </>
-        )}
+      <Section title="Screening result">
+        <ScreeningResultSection screening={screening} />
       </Section>
 
       {assessment?.review ? (
@@ -407,57 +321,14 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
       ) : null}
 
       <Section title="Emails">
-        {communications.length === 0 ? (
-          <Text c="dimmed">No emails queued for this candidate yet.</Text>
-        ) : (
-          communications.map((c) => (
-            <Group key={c.id} justify="space-between">
-              <div>
-                <Text fw={500}>
-                  {c.template_key} · {labelOf(COMM_STATUS, c.status as CommStatus)}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  {c.to_email} · {datetime(c.created_at)}
-                  {c.last_error ? ` · ${c.last_error}` : ''}
-                </Text>
-              </div>
-              {c.status === 'FAILED' ? (
-                <MotionButton
-                  className="cursor-pointer rounded-lg"
-                  aria-label={`Retry email ${c.template_key}`}
-                  size="xs"
-                  color="danger"
-                  variant="light"
-                  onClick={() => void retryEmail(c.id)}
-                >
-                  Retry
-                </MotionButton>
-              ) : null}
-            </Group>
-          ))
-        )}
+        <CandidateEmailsSection
+          communications={communications}
+          onChanged={() => void mutate()}
+        />
       </Section>
 
       <Section title="Timeline">
-        {timeline.length === 0 ? (
-          <Text c="dimmed">No events yet.</Text>
-        ) : (
-          <Timeline active={timeline.length - 1} bulletSize={18} lineWidth={2} color="accent">
-            {timeline.map((event) => (
-              <Timeline.Item key={event.id} title={event.event_type} bullet={<span aria-hidden />}>
-                <Text size="sm" c="dimmed">
-                  {datetime(event.created_at)}
-                  {event.actor_label ? ` · ${event.actor_label}` : ''}
-                  {event.from_stage || event.to_stage
-                    ? ` · ${event.from_stage ? stageLabel(event.from_stage as Stage) : '—'} → ${
-                        event.to_stage ? stageLabel(event.to_stage as Stage) : '—'
-                      }`
-                    : ''}
-                </Text>
-              </Timeline.Item>
-            ))}
-          </Timeline>
-        )}
+        <CandidateTimelineSection timeline={timeline} />
       </Section>
     </Stack>
   );

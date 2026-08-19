@@ -1,6 +1,12 @@
 import 'server-only';
 import { runAutomation } from '@/lib/automation';
 import { one, query, tx } from '@/lib/db';
+import {
+  auditAutoInviteSkipped,
+  issueInvite,
+} from '@/lib/pipeline/invites';
+import { appendEvent } from '@/lib/repos/events';
+import { getAppSettings } from '@/lib/repos/app-settings';
 import { insertWorkflowError } from '@/lib/repos/workflow-errors';
 import type { AssessmentGradeData, AssessmentGradeResultItem } from '@/types/api';
 import type { QuestionType, Stage } from '@/types/domain';
@@ -346,6 +352,76 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
       ],
     );
   });
+
+  const assessmentConfig = await one<{ pass_score: number }>(
+    `SELECT pass_score FROM HRSYSTEM_assessments WHERE id = $1`,
+    [sitting.assessment_id],
+  );
+  const settings = await getAppSettings();
+  const confidences = allEvals
+    .map((ev) => ev.confidence)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const avgConfidence =
+    confidences.length > 0
+      ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
+      : aiFailed
+        ? 0
+        : 1;
+
+  if (
+    !aiFailed &&
+    assessmentConfig &&
+    totalPct >= assessmentConfig.pass_score &&
+    avgConfidence >= Number(settings.auto_shortlist_min_confidence)
+  ) {
+    const reason = `Score ${Math.round(totalPct)}% met pass threshold (${assessmentConfig.pass_score}) with confidence ${avgConfidence.toFixed(2)}`;
+
+    await tx(async (client) => {
+      const updated = await client.query<{ stage: Stage }>(
+        `UPDATE HRSYSTEM_applications
+         SET stage = 'TECH_SHORTLISTED'::HRSYSTEM_app_stage,
+             updated_at = now()
+         WHERE id = $1 AND stage = 'TECH_ASSESSMENT_REVIEW'::HRSYSTEM_app_stage
+         RETURNING stage`,
+        [sitting.application_id],
+      );
+      if ((updated.rowCount ?? 0) === 0) return;
+
+      await appendEvent({
+        application_id: sitting.application_id,
+        candidate_id: sitting.candidate_id,
+        job_id: sitting.job_id,
+        event_type: 'AUTO_ASSESSMENT_PASSED',
+        from_stage: 'TECH_ASSESSMENT_REVIEW',
+        to_stage: 'TECH_SHORTLISTED',
+        actor_type: 'SYSTEM',
+        actor_label: 'Automation',
+        payload: { reason, ai_score: Math.round(totalPct) },
+      });
+
+      const sendAt = new Date(
+        Date.now() + settings.auto_send_techtest_delay_minutes * 60_000,
+      );
+      const inviteResult = await issueInvite(sitting.application_id, {
+        kind: 'TECH_TEST',
+        sendAt,
+        actor: { type: 'SYSTEM', label: 'Automation' },
+        client,
+        autoScheduled: true,
+      });
+      if (!inviteResult.ok && inviteResult.reason === 'no_assessment') {
+        await auditAutoInviteSkipped(client, {
+          applicationId: sitting.application_id,
+          candidateId: sitting.candidate_id,
+          jobId: sitting.job_id,
+          stage: 'TECH_SHORTLISTED',
+          kind: 'TECH_TEST',
+          reason: 'No recorded tech test configured for this job',
+          actor: { type: 'SYSTEM', label: 'Automation' },
+        });
+      }
+    });
+  }
 }
 
 type ProctoringFlag = 'CLEAN' | 'MINOR_FLAGS' | 'REVIEW_RECORDING';

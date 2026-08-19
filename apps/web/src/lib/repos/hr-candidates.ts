@@ -1,7 +1,8 @@
 import 'server-only';
-import { one, query, tx } from '@/lib/db';
 import { signedDeliveryUrl } from '@/lib/cloudinary';
+import { one, query, tx } from '@/lib/db';
 import type {
+  HrApplicationAnswers,
   HrCandidateListRow,
   HrCandidatesDeleteResult,
   HrCandidatesGetResult,
@@ -84,6 +85,60 @@ export async function listHrCandidates(
 
 type AnswerRow = { question_key: string; label: string; answer: unknown };
 
+type JobQuestionRow = {
+  key: string;
+  label: string;
+  order_index: number;
+};
+
+function buildApplicationAnswers(
+  candidate: Candidate,
+  application: Application,
+  job: Job,
+  answerRows: AnswerRow[],
+  jobQuestions: JobQuestionRow[],
+): HrApplicationAnswers {
+  const answersByKey = new Map(answerRows.map((row) => [row.question_key, row.answer]));
+
+  const questions = jobQuestions.map((q) => {
+    const answer = answersByKey.get(q.key) ?? null;
+    const answered =
+      answer != null &&
+      answer !== '' &&
+      !(typeof answer === 'string' && answer.trim() === '');
+    return {
+      question_key: q.key,
+      label: q.label,
+      answer: answered ? answer : null,
+      answered,
+    };
+  });
+
+  return {
+    personal: {
+      full_name: candidate.full_name,
+      email: candidate.email,
+      phone: candidate.phone,
+      country: candidate.country,
+      city: candidate.city,
+      age: job.ask_age ? candidate.age : null,
+      military_status: job.ask_military_status ? candidate.military_status : null,
+      marital_status: job.ask_marital_status ? candidate.marital_status : null,
+    },
+    professional: {
+      employment_status: application.employment_status,
+      current_company: application.current_company,
+      current_position: application.current_position,
+      years_experience: application.years_experience,
+      expected_salary: application.expected_salary,
+      salary_currency: job.currency,
+      notice_period_days: application.notice_period_days,
+      available_from: application.available_from,
+    },
+    questions,
+  };
+}
+
 type CvRow = {
   public_id: string;
   resource_type: string;
@@ -135,6 +190,7 @@ export async function getHrCandidateDetail(
     candidate,
     job,
     answers,
+    jobQuestions,
     cvDoc,
     screening,
     assessmentSitting,
@@ -166,6 +222,13 @@ export async function getHrCandidateDetail(
        WHERE aa.application_id = $1
        ORDER BY COALESCE(jq_by_id.order_index, jq_by_key.order_index) NULLS LAST, aa.question_key`,
       [applicationId],
+    ),
+    query<JobQuestionRow>(
+      `SELECT key, label, order_index
+       FROM HRSYSTEM_job_questions
+       WHERE job_id = $1
+       ORDER BY order_index ASC, key ASC`,
+      [application.job_id],
     ),
     one<CvRow>(
       `SELECT public_id, resource_type, format, parse_status, parsed, original_name
@@ -239,11 +302,7 @@ export async function getHrCandidateDetail(
 
   let cv: HrCandidatesGetResult['cv'] = null;
   if (cvDoc) {
-    const format = cvDoc.format || 'pdf';
-    const signed = signedDeliveryUrl(cvDoc.public_id, cvDoc.resource_type, format);
     cv = {
-      signed_url: signed.url,
-      expires_in: signed.expires_in,
       parse_status: cvDoc.parse_status,
       parsed: cvDoc.parsed,
       original_name: cvDoc.original_name ?? 'cv.pdf',
@@ -354,7 +413,7 @@ export async function getHrCandidateDetail(
     candidate,
     application,
     job,
-    answers,
+    application_answers: buildApplicationAnswers(candidate, application, job, answers, jobQuestions),
     cv,
     screening: screening
       ? {

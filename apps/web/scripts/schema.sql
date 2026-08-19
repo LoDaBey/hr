@@ -488,6 +488,11 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_app_settings (
   auto_send_assessment_delay_minutes int     NOT NULL DEFAULT 60,
   auto_send_techtest                 boolean NOT NULL DEFAULT true,
   auto_send_techtest_delay_minutes   int     NOT NULL DEFAULT 60,
+  auto_reject_hard_fail              boolean NOT NULL DEFAULT true,
+  auto_shortlist_enabled             boolean NOT NULL DEFAULT true,
+  auto_shortlist_min_score           int     NOT NULL DEFAULT 75,
+  auto_shortlist_min_confidence      numeric(3,2) NOT NULL DEFAULT 0.75,
+  auto_reject_max_score              int     NOT NULL DEFAULT 40,
   updated_at                         timestamptz NOT NULL DEFAULT now(),
   updated_by                         uuid REFERENCES HRSYSTEM_users(id) ON DELETE SET NULL
 );
