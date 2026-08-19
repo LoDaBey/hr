@@ -156,7 +156,7 @@ export async function POST(
     }
 
     after(() => {
-      void gradeAssessment(result.sittingId).catch((error) => {
+      void gradeAssessment(result.sittingId, { expectedStatus: 'SUBMITTED' }).catch((error) => {
         console.error('gradeAssessment failed', error);
       });
     });

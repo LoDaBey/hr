@@ -5,6 +5,7 @@ import {
   Alert,
   Group,
   Modal,
+  Paper,
   Stack,
   Text,
   Title,
@@ -22,6 +23,9 @@ import type {
   CandidateQuestion,
 } from '@/types/api';
 import { AssessmentQuestionInput, isAnswered } from './AssessmentQuestionInput';
+
+const QUESTION_CARD_MIN_HEIGHT = 420;
+const NAV_BAR_HEIGHT = 56;
 
 function formatRemaining(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -142,7 +146,6 @@ export function AssessmentSitting({
     }
   }
 
-  // Resume: if already STARTED on load, re-start (idempotent) and sync clock.
   useEffect(() => {
     if (initial.status !== 'STARTED') return;
     let cancelled = false;
@@ -165,7 +168,6 @@ export function AssessmentSitting({
     };
   }, [initial.status, token]);
 
-  // Countdown
   useEffect(() => {
     if (phase !== 'sitting' || !expiresAt) return;
     const tick = () => {
@@ -180,7 +182,6 @@ export function AssessmentSitting({
     return () => window.clearInterval(id);
   }, [phase, expiresAt, clockOffset, doSubmit]);
 
-  // Autosave every 20s
   useEffect(() => {
     if (phase !== 'sitting') return;
     const id = window.setInterval(() => {
@@ -200,7 +201,7 @@ export function AssessmentSitting({
 
   if (phase === 'done') {
     return (
-      <Stack gap="md" maw={560} mx="auto" py="xl" px="md" align="center">
+      <Stack gap="md" maw={density.contentMaxWidth} mx="auto" py={56} px="md" align="center">
         <Title order={1} ta="center" style={{ color: palette.ink }}>
           Thank you
         </Title>
@@ -213,7 +214,7 @@ export function AssessmentSitting({
 
   if (phase === 'intro') {
     return (
-      <Stack gap="lg" maw={560} mx="auto" py="xl" px="md">
+      <Stack gap="lg" maw={density.contentMaxWidth} mx="auto" py={56} px="md">
         <div>
           <Text size="sm" c="dimmed">
             {data.job_title}
@@ -255,6 +256,7 @@ export function AssessmentSitting({
   }
 
   const current: CandidateQuestion | undefined = questions[index];
+  const isLast = index >= questions.length - 1;
 
   return (
     <div style={{ minHeight: '100vh', background: palette.paper }}>
@@ -275,6 +277,9 @@ export function AssessmentSitting({
           {data.assessment.title}
         </Text>
         <Group gap="md">
+          <Text size="sm" c="dimmed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {index + 1} of {questions.length}
+          </Text>
           <Text size="sm" c="dimmed">
             {saving ? 'Saving…' : savedAt ? 'Saved' : ''}
           </Text>
@@ -292,99 +297,123 @@ export function AssessmentSitting({
         </Group>
       </Group>
 
-      <Group align="flex-start" gap={0} wrap="nowrap" style={{ minHeight: 'calc(100vh - 52px)' }}>
-        <Stack
-          gap={4}
-          p="sm"
-          style={{
-            width: 160,
-            borderRight: `1px solid ${palette.ink}14`,
-            flexShrink: 0,
-          }}
-        >
-          <Text size="xs" c="dimmed" mb={4}>
-            Questions
-          </Text>
-          {questions.map((q, i) => {
-            const answered = isAnswered(answers[q.id]);
-            const active = i === index;
-            return (
-              <UnstyledButton
-                key={q.id}
-                className="cursor-pointer rounded-lg"
-                aria-label={`Go to question ${i + 1}${answered ? ', answered' : ', not answered'}`}
-                onClick={() => void goTo(i)}
-                style={{
-                  padding: '6px 8px',
-                  textAlign: 'left',
-                  background: active ? `${palette.accent}18` : 'transparent',
-                  color: answered ? palette.success : palette.ink,
-                  fontSize: 13,
-                }}
-              >
-                {i + 1}. {answered ? 'Answered' : 'Not answered'}
-              </UnstyledButton>
-            );
-          })}
-        </Stack>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '32px 16px 48px',
+        }}
+      >
+        <Group align="flex-start" gap="lg" wrap="nowrap" maw={density.contentMaxWidth + 180}>
+          <Stack
+            gap={4}
+            p="sm"
+            style={{
+              width: 148,
+              flexShrink: 0,
+            }}
+          >
+            <Text size="xs" c="dimmed" mb={4}>
+              Questions
+            </Text>
+            {questions.map((q, i) => {
+              const answered = isAnswered(answers[q.id]);
+              const active = i === index;
+              return (
+                <UnstyledButton
+                  key={q.id}
+                  className="cursor-pointer rounded-lg"
+                  aria-label={`Go to question ${i + 1}${answered ? ', answered' : ', not answered'}`}
+                  onClick={() => void goTo(i)}
+                  style={{
+                    padding: '6px 8px',
+                    textAlign: 'left',
+                    background: active ? `${palette.accent}18` : 'transparent',
+                    color: answered ? palette.success : palette.ink,
+                    fontSize: 13,
+                  }}
+                >
+                  {i + 1}. {answered ? 'Answered' : 'Not answered'}
+                </UnstyledButton>
+              );
+            })}
+          </Stack>
 
-        <Stack gap="md" p="md" style={{ flex: 1, maxWidth: 720 }}>
-          {error ? (
-            <Alert color="danger" title="Something went wrong">
-              {error}
-            </Alert>
-          ) : null}
-          <Text size="sm" c="dimmed">
-            {index + 1} of {questions.length}
-          </Text>
-          {current ? (
-            <>
-              <Text fw={600} style={{ whiteSpace: 'pre-wrap' }}>
-                {current.prompt}
-              </Text>
-              <Text size="sm" c="dimmed">
-                {current.max_score} points
-              </Text>
-              <AssessmentQuestionInput
-                question={current}
-                value={answers[current.id]}
-                onChange={(next) => setAnswer(current.id, next)}
-              />
-            </>
-          ) : null}
+          <Paper
+            withBorder
+            radius={density.defaultRadius}
+            style={{
+              flex: 1,
+              width: density.contentMaxWidth,
+              maxWidth: density.contentMaxWidth,
+              minHeight: QUESTION_CARD_MIN_HEIGHT,
+              borderColor: `${palette.ink}14`,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Stack gap="md" p="lg" style={{ flex: 1 }}>
+              {error ? (
+                <Alert color="danger" title="Something went wrong">
+                  {error}
+                </Alert>
+              ) : null}
+              {current ? (
+                <>
+                  <Text fw={600} style={{ whiteSpace: 'pre-wrap' }}>
+                    {current.prompt}
+                  </Text>
+                  <AssessmentQuestionInput
+                    question={current}
+                    value={answers[current.id]}
+                    onChange={(next) => setAnswer(current.id, next)}
+                  />
+                </>
+              ) : null}
+            </Stack>
 
-          <Group justify="space-between" mt="md">
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Previous question"
-              variant="default"
-              disabled={index === 0}
-              onClick={() => void goTo(index - 1)}
+            <Group
+              justify="space-between"
+              px="lg"
+              py="md"
+              style={{
+                borderTop: `1px solid ${palette.ink}14`,
+                minHeight: NAV_BAR_HEIGHT,
+              }}
             >
-              Prev
-            </MotionButton>
-            {index < questions.length - 1 ? (
               <MotionButton
                 className="cursor-pointer rounded-lg"
-                aria-label="Next question"
-                onClick={() => void goTo(index + 1)}
+                aria-label="Previous question"
+                variant="default"
+                disabled={index === 0}
+                onClick={() => void goTo(index - 1)}
               >
-                Next
+                Prev
               </MotionButton>
-            ) : (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label="Submit assessment"
-                color="success"
-                loading={submitting}
-                onClick={() => setConfirmOpen(true)}
-              >
-                Submit
-              </MotionButton>
-            )}
-          </Group>
-        </Stack>
-      </Group>
+              {isLast ? (
+                <MotionButton
+                  className="cursor-pointer rounded-lg"
+                  aria-label="Submit assessment"
+                  color="success"
+                  loading={submitting}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  Submit
+                </MotionButton>
+              ) : (
+                <MotionButton
+                  className="cursor-pointer rounded-lg"
+                  aria-label="Next question"
+                  color="accent"
+                  onClick={() => void goTo(index + 1)}
+                >
+                  Next
+                </MotionButton>
+              )}
+            </Group>
+          </Paper>
+        </Group>
+      </div>
 
       <Modal
         opened={confirmOpen}

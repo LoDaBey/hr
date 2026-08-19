@@ -3,9 +3,9 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { Extension } from '@codemirror/state';
-import { Badge, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core';
 import { density, palette } from '@/theme';
-import type { QuestionType } from '@/types/domain';
+import type { QuestionType, SittingStatus } from '@/types/domain';
 
 const CodeMirror = dynamic(() => import('@uiw/react-codemirror'), { ssr: false });
 
@@ -31,11 +31,14 @@ export type AssessmentReviewQuestion = {
 
 export type AssessmentReviewData = {
   id: string;
+  status: SittingStatus;
   late: boolean;
   ai_score: number | null;
   ai_max_score: number | null;
   submitted_at: string | null;
   overall_feedback: string | null;
+  has_overall_evaluation: boolean;
+  grading_error: string | null;
   questions: AssessmentReviewQuestion[];
 };
 
@@ -95,39 +98,77 @@ function ReadOnlyCode({ value, language }: { value: string; language: string | n
   );
 }
 
-export function AssessmentReview({ review }: { review: AssessmentReviewData }) {
-  const totalScore = review.questions.reduce(
-    (s, q) => s + (q.evaluation?.score ?? 0),
-    0,
-  );
+function ScoreHeader({ review }: { review: AssessmentReviewData }) {
+  if (review.grading_error) {
+    return (
+      <Alert color="danger" title="Grading failed — review manually">
+        {review.grading_error}
+        {review.overall_feedback ? (
+          <Text size="sm" mt="xs">
+            {review.overall_feedback}
+          </Text>
+        ) : null}
+      </Alert>
+    );
+  }
+
+  if (!review.has_overall_evaluation && review.status === 'SUBMITTED') {
+    return (
+      <Group gap="sm">
+        <Loader size="sm" color="accent" aria-label="Awaiting grading" />
+        <Text fw={600} style={{ color: palette.ink }}>
+          Awaiting grading
+        </Text>
+        <Text size="sm" c="dimmed">
+          AI grading is in progress — this page refreshes automatically.
+        </Text>
+      </Group>
+    );
+  }
+
+  if (!review.has_overall_evaluation) {
+    return (
+      <Text fw={600} c="dimmed">
+        Not graded yet
+      </Text>
+    );
+  }
+
+  const totalScore = review.questions.reduce((s, q) => s + (q.evaluation?.score ?? 0), 0);
   const totalMax = review.questions.reduce(
     (s, q) => s + (q.evaluation?.max_score ?? q.max_score ?? 0),
     0,
   );
 
   return (
-    <Stack gap="md">
-      <Group justify="space-between" align="center" wrap="wrap">
-        <Group gap="sm">
-          <Text fw={600}>
-            Score: {review.ai_score ?? Math.round(totalMax ? (totalScore / totalMax) * 100 : 0)}
-            {review.ai_max_score ? ` / ${review.ai_max_score}` : '%'}
-          </Text>
-          <Text size="sm" c="dimmed">
-            ({totalScore} / {totalMax} points)
-          </Text>
-          {review.late ? (
-            <Badge color="warning" variant="light">
-              Late
-            </Badge>
-          ) : null}
-        </Group>
-        {review.overall_feedback ? (
-          <Text size="sm" c="dimmed" maw={420}>
-            {review.overall_feedback}
-          </Text>
+    <Group justify="space-between" align="center" wrap="wrap">
+      <Group gap="sm">
+        <Text fw={600}>
+          Score: {review.ai_score ?? Math.round(totalMax ? (totalScore / totalMax) * 100 : 0)}
+          {review.ai_max_score ? ` / ${review.ai_max_score}` : '%'}
+        </Text>
+        <Text size="sm" c="dimmed">
+          ({totalScore} / {totalMax} points)
+        </Text>
+        {review.late ? (
+          <Badge color="warning" variant="light">
+            Late
+          </Badge>
         ) : null}
       </Group>
+      {review.overall_feedback ? (
+        <Text size="sm" c="dimmed" maw={420}>
+          {review.overall_feedback}
+        </Text>
+      ) : null}
+    </Group>
+  );
+}
+
+export function AssessmentReview({ review }: { review: AssessmentReviewData }) {
+  return (
+    <Stack gap="md">
+      <ScoreHeader review={review} />
 
       {review.questions.map((q, index) => {
         const ev = q.evaluation;
@@ -186,11 +227,11 @@ export function AssessmentReview({ review }: { review: AssessmentReviewData }) {
                     </Text>
                   ) : null}
                 </Stack>
-              ) : (
+              ) : review.has_overall_evaluation ? (
                 <Text size="sm" c="dimmed">
                   No evaluation yet.
                 </Text>
-              )}
+              ) : null}
             </Stack>
           </Paper>
         );

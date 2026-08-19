@@ -21,6 +21,13 @@ export function time(value: string | Date | null | undefined): string {
   return parsed.isValid() ? parsed.format('HH:mm') : '—';
 }
 
+/** e.g. "23 Aug 01:15" for invite deadline display */
+export function inviteDeadlineShort(value: string | Date | null | undefined): string {
+  if (value == null || value === '') return '—';
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('D MMM HH:mm') : '—';
+}
+
 export function relativeTime(value: string | Date | null | undefined): string {
   if (value == null || value === '') return '—';
   const parsed = dayjs(value);

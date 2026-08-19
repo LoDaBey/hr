@@ -237,7 +237,7 @@ export async function POST(
     }
 
     after(() => {
-      void evaluateTechTest(result.sittingId).catch((error) => {
+      void evaluateTechTest(result.sittingId, { expectedStatus: 'SUBMITTED' }).catch((error) => {
         console.error('evaluateTechTest failed', error);
       });
     });

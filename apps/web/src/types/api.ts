@@ -447,6 +447,8 @@ export interface HrCandidatesGetResult {
     ai_max_score: number | null;
     review: {
       overall_feedback: string | null;
+      has_overall_evaluation: boolean;
+      grading_error: string | null;
       questions: Array<{
         id: string;
         order_index: number;
@@ -482,6 +484,8 @@ export interface HrCandidatesGetResult {
     recording_status: RecordingStatus | null;
     review: {
       overall_feedback: string | null;
+      has_overall_evaluation: boolean;
+      grading_error: string | null;
       proctoring_flag: 'CLEAN' | 'MINOR_FLAGS' | 'REVIEW_RECORDING' | null;
       proctoring_summary: string | null;
       recording: {
