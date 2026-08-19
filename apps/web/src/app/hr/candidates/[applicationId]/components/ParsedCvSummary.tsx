@@ -4,12 +4,10 @@ import { useState } from 'react';
 import {
   Anchor,
   Badge,
-  Collapse,
   Divider,
   Group,
   Stack,
   Text,
-  Title,
 } from '@mantine/core';
 import { palette } from '@/theme';
 
@@ -260,7 +258,7 @@ export function ParsedCvSummary({
           >
             {showProjects ? `Hide projects` : `Show ${projects.length} project${projects.length === 1 ? '' : 's'}`}
           </Anchor>
-          <Collapse opened={showProjects}>
+          {showProjects ? (
             <Stack gap={8} mt={8}>
               {projects.map((p, i) => {
                 const name = p.name ?? p.title ?? `Project ${i + 1}`;
@@ -273,7 +271,7 @@ export function ParsedCvSummary({
                 );
               })}
             </Stack>
-          </Collapse>
+          ) : null}
         </div>
       )}
 
@@ -288,7 +286,7 @@ export function ParsedCvSummary({
         {showRaw ? 'Hide raw' : 'View raw'}
       </Anchor>
 
-      <Collapse opened={showRaw}>
+      {showRaw ? (
         <Text
           size="xs"
           ff="monospace"
@@ -304,7 +302,7 @@ export function ParsedCvSummary({
         >
           {JSON.stringify(raw, null, 2)}
         </Text>
-      </Collapse>
+      ) : null}
     </Stack>
   );
 }
