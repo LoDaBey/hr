@@ -33,6 +33,7 @@ export function ErrorsView({
   const [dispatching, setDispatching] = useState(false);
   const [runningDeadline, setRunningDeadline] = useState(false);
   const [runningReminders, setRunningReminders] = useState(false);
+  const [runningSweep, setRunningSweep] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
   async function sendQueuedEmails() {
@@ -65,7 +66,10 @@ export function ErrorsView({
   }
 
   async function runCron(
-    path: '/api/cron/deadline-monitor' | '/api/cron/interview-reminders',
+    path:
+      | '/api/cron/deadline-monitor'
+      | '/api/cron/interview-reminders'
+      | '/api/cron/pipeline-sweep',
     label: string,
     setLoading: (v: boolean) => void,
   ) {
@@ -175,6 +179,17 @@ export function ErrorsView({
               }
             >
               Run interview reminders
+            </MotionButton>
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Run pipeline sweep"
+              variant="default"
+              loading={runningSweep}
+              onClick={() =>
+                void runCron('/api/cron/pipeline-sweep', 'Pipeline sweep', setRunningSweep)
+              }
+            >
+              Run pipeline sweep
             </MotionButton>
           </Group>
         ) : null}

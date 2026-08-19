@@ -11,6 +11,14 @@ function shouldPollAssessmentGrading(data: HrCandidatesGetResult | undefined): b
   return !assessment.review.has_overall_evaluation;
 }
 
+function shouldPollTechTestGrading(data: HrCandidatesGetResult | undefined): boolean {
+  const techtest = data?.techtest;
+  if (!techtest || techtest.status !== 'SUBMITTED') return false;
+  if (!techtest.review) return true;
+  if (techtest.review.grading_error) return false;
+  return !techtest.review.has_overall_evaluation;
+}
+
 export function useHrCandidate(applicationId: string | null) {
   return useSWR<HrCandidatesGetResult>(
     applicationId ? `/api/hr/candidates/${applicationId}` : null,
@@ -18,6 +26,7 @@ export function useHrCandidate(applicationId: string | null) {
       refreshInterval: (latest) => {
         if (latest?.screening_pending) return 10_000;
         if (shouldPollAssessmentGrading(latest)) return 10_000;
+        if (shouldPollTechTestGrading(latest)) return 10_000;
         return 0;
       },
     },
