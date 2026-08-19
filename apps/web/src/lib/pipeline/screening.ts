@@ -234,6 +234,20 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         ];
         reasoning = result.data.reasoning_summary || reasoning;
         rawResponse = result.data;
+
+        // Apply shortlist_threshold as the auto-advance cut-off.
+        // The threshold is the minimum score to receive a SHORTLIST recommendation.
+        // If the AI already rejected, we leave that intact.
+        const threshold = Number.isFinite(Number(job.shortlist_threshold))
+          ? Number(job.shortlist_threshold)
+          : null;
+        if (threshold !== null && score !== null && decision !== 'RECOMMEND_REJECT') {
+          if (score >= threshold && decision === 'MANUAL_REVIEW') {
+            decision = 'SHORTLIST';
+          } else if (score < threshold && (decision === 'SHORTLIST' || decision === 'STRONG_SHORTLIST')) {
+            decision = 'MANUAL_REVIEW';
+          }
+        }
       } else {
         console.error('screening.run failed', applicationId, result.error.message);
         await insertWorkflowError({

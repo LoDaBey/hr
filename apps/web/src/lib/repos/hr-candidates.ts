@@ -149,12 +149,22 @@ export async function getHrCandidateDetail(
     one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [application.job_id]),
     query<AnswerRow>(
       `SELECT aa.question_key,
-              COALESCE(jq.label, aa.question_key) AS label,
+              COALESCE(
+                jq_by_id.label,
+                jq_by_key.label,
+                replace(replace(aa.question_key, '_', ' '), '-', ' ')
+              ) AS label,
               aa.answer
        FROM HRSYSTEM_application_answers aa
-       LEFT JOIN HRSYSTEM_job_questions jq ON jq.id = aa.question_id
+       LEFT JOIN HRSYSTEM_job_questions jq_by_id
+         ON jq_by_id.id = aa.question_id
+       LEFT JOIN HRSYSTEM_job_questions jq_by_key
+         ON jq_by_key.job_id = (
+               SELECT job_id FROM HRSYSTEM_applications WHERE id = $1
+             )
+           AND jq_by_key.key = aa.question_key
        WHERE aa.application_id = $1
-       ORDER BY jq.order_index NULLS LAST, aa.question_key`,
+       ORDER BY COALESCE(jq_by_id.order_index, jq_by_key.order_index) NULLS LAST, aa.question_key`,
       [applicationId],
     ),
     one<CvRow>(
