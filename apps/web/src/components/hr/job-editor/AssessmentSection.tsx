@@ -53,6 +53,7 @@ export function createEmptyAssessmentDraft(kind: AssessmentKind = 'ASSESSMENT'):
     require_camera: isTech,
     require_mic: isTech,
     require_fullscreen: isTech,
+    require_screen_share: false,
     rules: '',
   };
 }
@@ -81,6 +82,7 @@ export function assessmentDraftFromDetail(detail: {
   require_camera?: boolean;
   require_mic?: boolean;
   require_fullscreen?: boolean;
+  require_screen_share?: boolean;
   rules?: string | null;
   questions: AssessmentQuestion[];
 }): AssessmentDraft {
@@ -92,6 +94,7 @@ export function assessmentDraftFromDetail(detail: {
     require_camera: detail.require_camera ?? false,
     require_mic: detail.require_mic ?? false,
     require_fullscreen: detail.require_fullscreen ?? false,
+    require_screen_share: detail.require_screen_share ?? false,
     rules: detail.rules ?? '',
     questions: detail.questions.map((q) => {
       const parsed = parseMcqOptions(q.options);
@@ -247,6 +250,12 @@ export function AssessmentSection({
             description="Session starts in fullscreen. Leaving it is flagged."
             checked={value.require_fullscreen}
             onCheckedChange={(checked) => update({ require_fullscreen: checked })}
+          />
+          <CheckboxReveal
+            label="Require screen share"
+            description="Candidate must share their entire monitor. Tab or window shares are rejected."
+            checked={value.require_screen_share}
+            onCheckedChange={(checked) => update({ require_screen_share: checked })}
           />
           <Textarea
             className="rounded outline-none"

@@ -14,8 +14,19 @@ import {
 } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
 import { datetime } from '@/lib/format';
+import {
+  deviceTrackStatus,
+  formatDeviceStatus,
+  streamMeetsRequirements,
+  type MediaRequirements,
+} from '@/lib/media-stream';
+import { isExternalDisplayConnected } from '@/hooks/useProctoring';
 import { density, palette } from '@/theme';
 import type { CandidateAssessmentGetResult } from '@/types/api';
+import {
+  ScreenSharePreflightBlock,
+  useScreenShareMonitor,
+} from './ScreenSharePreflight';
 
 type MediaState = 'idle' | 'requesting' | 'ready' | 'denied' | 'error';
 
@@ -28,23 +39,44 @@ export function TechInterviewPreflight({
   data: CandidateAssessmentGetResult;
   starting?: boolean;
   startError?: string | null;
-  /** Receives the live MediaStream (ownership transfers — do not stop tracks here). */
-  onStart: (stream: MediaStream | null) => void | Promise<void>;
+  /** Receives camera/mic stream and optional screen-share stream (ownership transfers). */
+  onStart: (
+    stream: MediaStream | null,
+    screenStream: MediaStream | null,
+    preflightExternalDisplay: boolean,
+  ) => void | Promise<void>;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const requirements = data.requirements ?? {
-    camera: true,
-    mic: true,
-    fullscreen: true,
-    rules: [],
+  const requirements: MediaRequirements = {
+    camera: data.requirements?.camera ?? true,
+    mic: data.requirements?.mic ?? true,
   };
+  const needsScreenShare = data.requirements?.screen_share === true;
+  const screenShare = useScreenShareMonitor();
+  const [externalDisplay, setExternalDisplay] = useState(() => isExternalDisplayConnected());
+
+  const checkExternalDisplay = useCallback(() => {
+    setExternalDisplay(isExternalDisplayConnected());
+  }, []);
   const needsMedia = requirements.camera || requirements.mic;
+
+  useEffect(() => {
+    checkExternalDisplay();
+  }, [checkExternalDisplay]);
+
   const [mediaState, setMediaState] = useState<MediaState>(() =>
     needsMedia ? 'requesting' : 'ready',
   );
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [acceptedRules, setAcceptedRules] = useState(false);
+  const [trackStatus, setTrackStatus] = useState(() =>
+    deviceTrackStatus(null, requirements),
+  );
+
+  const refreshTrackStatus = useCallback(() => {
+    setTrackStatus(deviceTrackStatus(streamRef.current, requirements));
+  }, [requirements]);
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -52,7 +84,8 @@ export function TechInterviewPreflight({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  }, []);
+    setTrackStatus(deviceTrackStatus(null, requirements));
+  }, [requirements]);
 
   const applyMediaError = useCallback((error: unknown) => {
     const name = error instanceof DOMException ? error.name : '';
@@ -72,7 +105,8 @@ export function TechInterviewPreflight({
           : 'Could not access camera or microphone. Retry when ready.',
       );
     }
-  }, []);
+    refreshTrackStatus();
+  }, [refreshTrackStatus]);
 
   const mediaConstraints = useCallback((): MediaStreamConstraints => {
     return {
@@ -83,7 +117,27 @@ export function TechInterviewPreflight({
     };
   }, [requirements.camera, requirements.mic]);
 
+  const attachStreamListeners = useCallback(
+    (stream: MediaStream) => {
+      const onChange = () => refreshTrackStatus();
+      for (const track of stream.getTracks()) {
+        track.addEventListener('ended', onChange);
+        track.addEventListener('mute', onChange);
+        track.addEventListener('unmute', onChange);
+      }
+      return () => {
+        for (const track of stream.getTracks()) {
+          track.removeEventListener('ended', onChange);
+          track.removeEventListener('mute', onChange);
+          track.removeEventListener('unmute', onChange);
+        }
+      };
+    },
+    [refreshTrackStatus],
+  );
+
   const requestMedia = useCallback(async () => {
+    checkExternalDisplay();
     if (!needsMedia) {
       setMediaState('ready');
       return;
@@ -98,16 +152,22 @@ export function TechInterviewPreflight({
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => undefined);
       }
-      setMediaState('ready');
+      const live = streamMeetsRequirements(stream, requirements);
+      setMediaState(live ? 'ready' : 'error');
+      if (!live) {
+        setMediaError('Camera or microphone is not active. Check your devices, then retry.');
+      }
+      refreshTrackStatus();
     } catch (error) {
       applyMediaError(error);
     }
-  }, [applyMediaError, mediaConstraints, needsMedia, stopTracks]);
+  }, [applyMediaError, checkExternalDisplay, mediaConstraints, needsMedia, refreshTrackStatus, requirements, stopTracks]);
 
   useEffect(() => {
     if (!needsMedia) return;
 
     let cancelled = false;
+    let detachListeners: (() => void) | undefined;
 
     void (async () => {
       try {
@@ -117,12 +177,19 @@ export function TechInterviewPreflight({
           return;
         }
         streamRef.current = stream;
+        detachListeners = attachStreamListeners(stream);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => undefined);
         }
-        setMediaState('ready');
-        setMediaError(null);
+        const live = streamMeetsRequirements(stream, requirements);
+        setMediaState(live ? 'ready' : 'error');
+        if (!live) {
+          setMediaError('Camera or microphone is not active. Check your devices, then retry.');
+        } else {
+          setMediaError(null);
+        }
+        refreshTrackStatus();
       } catch (error) {
         if (!cancelled) applyMediaError(error);
       }
@@ -130,20 +197,43 @@ export function TechInterviewPreflight({
 
     return () => {
       cancelled = true;
-      // Only stop if we still own the stream (Start hands it off by nulling streamRef).
+      detachListeners?.();
       stopTracks();
     };
-  }, [applyMediaError, mediaConstraints, needsMedia, stopTracks]);
+  }, [
+    applyMediaError,
+    attachStreamListeners,
+    mediaConstraints,
+    needsMedia,
+    refreshTrackStatus,
+    requirements,
+    stopTracks,
+  ]);
 
-  const canStart = acceptedRules && (mediaState === 'ready' || !needsMedia) && !starting;
+  const devicesLive = streamMeetsRequirements(streamRef.current, requirements);
+  const screenShareReady = !needsScreenShare || screenShare.ready;
+  const canStart =
+    acceptedRules &&
+    !starting &&
+    !externalDisplay &&
+    screenShareReady &&
+    (needsMedia ? mediaState === 'ready' && devicesLive : true);
 
   const handleStart = async () => {
     if (!canStart) return;
-    // Hand ownership to the parent so unmount cleanup does not kill the tracks.
     const stream = streamRef.current;
+    if (needsMedia && !streamMeetsRequirements(stream, requirements)) return;
     streamRef.current = null;
-    await onStart(stream);
+    const screenStream = needsScreenShare ? screenShare.release() : null;
+    await onStart(stream, screenStream, externalDisplay);
   };
+
+  const deviceLabel = formatDeviceStatus(trackStatus);
+  const showDeviceWarning =
+    needsMedia &&
+    mediaState === 'ready' &&
+    !devicesLive &&
+    (trackStatus.camera === 'off' || trackStatus.mic === 'off');
 
   return (
     <Stack gap="lg" maw={560} mx="auto" py="xl" px="md">
@@ -187,7 +277,7 @@ export function TechInterviewPreflight({
         </Stack>
       </Paper>
 
-      {requirements.rules.length > 0 ? (
+      {(data.requirements?.rules ?? []).length > 0 ? (
         <Paper
           withBorder
           p="md"
@@ -198,14 +288,14 @@ export function TechInterviewPreflight({
             Rules
           </Text>
           <List size="sm" spacing="xs">
-            {requirements.rules.map((rule) => (
+            {(data.requirements?.rules ?? []).map((rule) => (
               <List.Item key={rule}>{rule}</List.Item>
             ))}
           </List>
         </Paper>
       ) : null}
 
-      {(requirements.camera || requirements.mic) && (
+      {needsMedia && (
         <Paper
           withBorder
           p="md"
@@ -238,6 +328,7 @@ export function TechInterviewPreflight({
                   height: '100%',
                   objectFit: 'cover',
                   transform: 'scaleX(-1)',
+                  opacity: devicesLive ? 1 : 0.35,
                 }}
               />
               {mediaState === 'requesting' ? (
@@ -255,10 +346,26 @@ export function TechInterviewPreflight({
               ) : null}
             </div>
 
-            {mediaState === 'denied' || mediaState === 'error' ? (
+            {mediaState === 'ready' && deviceLabel ? (
+              <Text
+                size="sm"
+                fw={600}
+                style={{
+                  color:
+                    devicesLive && !showDeviceWarning ? palette.success : palette.danger,
+                }}
+              >
+                {deviceLabel}
+              </Text>
+            ) : null}
+
+            {mediaState === 'denied' || mediaState === 'error' || showDeviceWarning ? (
               <Alert color="danger" title="Device access needed">
                 <Stack gap="sm">
-                  <Text size="sm">{mediaError}</Text>
+                  <Text size="sm">
+                    {mediaError ??
+                      'Camera or microphone is not active. Check your devices, then retry.'}
+                  </Text>
                   <MotionButton
                     className="cursor-pointer rounded-lg"
                     aria-label="Retry camera and microphone access"
@@ -271,7 +378,7 @@ export function TechInterviewPreflight({
               </Alert>
             ) : null}
 
-            {mediaState === 'ready' ? (
+            {mediaState === 'ready' && devicesLive ? (
               <Text size="sm" c="dimmed">
                 Looking good. Accept the rules below when you are ready.
               </Text>
@@ -279,6 +386,33 @@ export function TechInterviewPreflight({
           </Stack>
         </Paper>
       )}
+
+      {externalDisplay ? (
+        <Alert color="danger" title="Second display detected">
+          <Stack gap="sm">
+            <Text size="sm">
+              A second display was detected. Please disconnect it before starting.
+            </Text>
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Re-check for second display"
+              variant="default"
+              onClick={() => checkExternalDisplay()}
+            >
+              Retry
+            </MotionButton>
+          </Stack>
+        </Alert>
+      ) : null}
+
+      {needsScreenShare && !externalDisplay ? (
+        <ScreenSharePreflightBlock
+          error={screenShare.error}
+          requesting={screenShare.requesting}
+          ready={screenShare.ready}
+          onRequest={() => void screenShare.request()}
+        />
+      ) : null}
 
       <Checkbox
         className="rounded outline-none"

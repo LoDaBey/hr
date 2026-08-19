@@ -93,7 +93,7 @@ export function AssessmentQuestionInput({
   question: CandidateQuestion;
   value: unknown;
   onChange: (next: unknown) => void;
-  onPasteDetected?: () => void;
+  onPasteDetected?: (charCount?: number) => void;
 }) {
   if (question.type === 'MCQ') {
     const options = mcqOptions(question.options);
@@ -121,7 +121,13 @@ export function AssessmentQuestionInput({
 
   if (question.type === 'CODING' || question.type === 'SQL') {
     return (
-      <Stack gap="xs" onPaste={() => onPasteDetected?.()}>
+      <Stack
+        gap="xs"
+        onPaste={(e) => {
+          const text = e.clipboardData.getData('text');
+          onPasteDetected?.(text.length);
+        }}
+      >
         <span style={{ fontSize: density.bodyFontSize, color: palette.ink }}>Your answer</span>
         <CodeAnswer
           value={answerAsString(value)}
@@ -137,10 +143,14 @@ export function AssessmentQuestionInput({
       className="rounded outline-none"
       label="Your answer"
       aria-label="Written answer"
+      autosize
       minRows={6}
       value={answerAsString(value)}
       onChange={(e) => onChange({ text: e.currentTarget.value })}
-      onPaste={() => onPasteDetected?.()}
+      onPaste={(e) => {
+        const text = e.clipboardData.getData('text');
+        onPasteDetected?.(text.length);
+      }}
     />
   );
 }

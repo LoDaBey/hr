@@ -509,6 +509,7 @@ export function JobWizard({
         require_camera: draft.require_camera,
         require_mic: draft.require_mic,
         require_fullscreen: draft.require_fullscreen,
+        require_screen_share: draft.require_screen_share,
         rules: draft.rules.trim() || null,
         questions: serializeAssessmentQuestions(draft.questions),
       },

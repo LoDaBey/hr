@@ -98,11 +98,12 @@ export async function getHrJobDetail(jobId: string): Promise<HrJobsGetResult | n
       require_camera: boolean;
       require_mic: boolean;
       require_fullscreen: boolean;
+      require_screen_share: boolean;
       rules: string | null;
       is_active: boolean;
     }>(
       `SELECT a.id, a.kind, a.title, a.instructions, a.duration_minutes, a.pass_score,
-              a.require_camera, a.require_mic, a.require_fullscreen, a.rules, a.is_active
+              a.require_camera, a.require_mic, a.require_fullscreen, a.require_screen_share, a.rules, a.is_active
        FROM HRSYSTEM_assessments a
        WHERE a.job_id = $1
        ORDER BY a.kind, a.is_active DESC, a.created_at DESC`,
@@ -474,9 +475,9 @@ export async function replaceJobAssessment(
       client,
       `INSERT INTO HRSYSTEM_assessments (
          job_id, kind, title, instructions, duration_minutes, pass_score,
-         require_camera, require_mic, require_fullscreen, rules, is_active
+         require_camera, require_mic, require_fullscreen, require_screen_share, rules, is_active
        )
-       VALUES ($1, $2::HRSYSTEM_assessment_kind, $3, $4, $5, $6, $7, $8, $9, $10, true)
+       VALUES ($1, $2::HRSYSTEM_assessment_kind, $3, $4, $5, $6, $7, $8, $9, $10, $11, true)
        RETURNING id`,
       [
         jobId,
@@ -488,6 +489,7 @@ export async function replaceJobAssessment(
         input.require_camera ?? false,
         input.require_mic ?? false,
         input.require_fullscreen ?? false,
+        input.require_screen_share ?? false,
         input.rules ?? null,
       ],
     );

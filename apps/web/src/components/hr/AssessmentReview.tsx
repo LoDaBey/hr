@@ -149,15 +149,10 @@ function ScoreHeader({
     }
   }
 
-  if (review.grading_error) {
+  if (review.grading_error && !review.has_overall_evaluation) {
     return (
       <Alert color="danger" title="Grading failed — review manually">
         {review.grading_error}
-        {review.overall_feedback ? (
-          <Text size="sm" mt="xs">
-            {review.overall_feedback}
-          </Text>
-        ) : null}
       </Alert>
     );
   }

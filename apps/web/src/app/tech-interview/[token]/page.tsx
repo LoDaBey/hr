@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import useSWR from 'swr';
 import { RecordingUploadProgress } from './components/RecordingUploadProgress';
+import { SessionDeviceBlockOverlay } from './components/SessionDeviceBlockOverlay';
 import { TechInterviewPreflight } from './components/TechInterviewPreflight';
 import { TechInterviewSitting } from './components/TechInterviewSitting';
 import { MotionButton } from '@/components/MotionButton';
@@ -11,6 +12,11 @@ import { useProctoring } from '@/hooks/useProctoring';
 import { useRecorder } from '@/hooks/useRecorder';
 import { ApiError, api } from '@/lib/api';
 import { uploadChunkedToCloudinary } from '@/lib/cloudinary-client';
+import {
+  replaceStreamTracks,
+  streamMeetsRequirements,
+  type MediaRequirements,
+} from '@/lib/media-stream';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { palette } from '@/theme';
 import type {
@@ -59,11 +65,13 @@ export default function TechInterviewPage({
   const { token } = use(params);
   const { start: startRecorder, stop: stopRecorder } = useRecorder();
   const streamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const recordingStartedAt = useRef<string | null>(null);
   const partNoRef = useRef(1);
   const submittedRef = useRef(false);
 
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
+  const [liveScreenStream, setLiveScreenStream] = useState<MediaStream | null>(null);
   const [phase, setPhase] = useState<
     'preflight' | 'live' | 'done' | 'uploading' | 'upload_pending'
   >('preflight');
@@ -76,6 +84,10 @@ export default function TechInterviewPage({
     null,
   );
   const [uploadResume, setUploadResume] = useState<UploadResume | null>(null);
+  const [deviceBlocked, setDeviceBlocked] = useState(false);
+  const [deviceBlockKind, setDeviceBlockKind] = useState<'camera' | 'mic' | 'screen' | null>(null);
+  const [restoringDevices, setRestoringDevices] = useState(false);
+  const [recordingReady, setRecordingReady] = useState(false);
 
   const { data, error, isLoading, mutate } = useSWR<CandidateAssessmentGetResult>(
     token ? `/api/techtest/${encodeURIComponent(token)}` : null,
@@ -83,16 +95,39 @@ export default function TechInterviewPage({
     { revalidateOnFocus: false, shouldRetryOnError: false },
   );
 
-  const { flushNow, takeUnflushed, onPasteDetected } = useProctoring({
+  const mediaRequirements: MediaRequirements = {
+    camera: data?.requirements?.camera ?? true,
+    mic: data?.requirements?.mic ?? true,
+  };
+
+  const { flushNow, takeUnflushed, onPasteDetected, sessionBanner } = useProctoring({
     token,
-    enabled: phase === 'live',
+    enabled: phase === 'live' && recordingReady,
     stream: liveStream,
+    screenStream: liveScreenStream,
+    onDeviceCritical: (kind) => {
+      setDeviceBlockKind(kind);
+      setDeviceBlocked(true);
+    },
+    onDeviceRestored: () => {
+      if (liveStream && streamMeetsRequirements(liveStream, mediaRequirements)) {
+        setDeviceBlocked(false);
+        setDeviceBlockKind(null);
+      }
+    },
+    onScreenShareCritical: () => {
+      setDeviceBlockKind('screen');
+      setDeviceBlocked(true);
+    },
   });
 
   const cleanupMedia = useCallback(async () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    screenStreamRef.current = null;
     setLiveStream(null);
+    setLiveScreenStream(null);
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined);
     }
@@ -101,7 +136,9 @@ export default function TechInterviewPage({
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      screenStreamRef.current = null;
       if (document.fullscreenElement) {
         void document.exitFullscreen().catch(() => undefined);
       }
@@ -282,11 +319,80 @@ export default function TechInterviewPage({
     }
   }, [finishRecordingUpload, runChunkedUpload, token, uploadResume]);
 
+  const handleResumeDevices = useCallback(async () => {
+    if (deviceBlockKind === 'screen') {
+      setRestoringDevices(true);
+      setStartError(null);
+      try {
+        const next = await navigator.mediaDevices.getDisplayMedia({
+          video: { displaySurface: 'monitor' },
+          audio: false,
+        });
+        const track = next.getVideoTracks()[0];
+        const surface = (
+          track?.getSettings() as MediaTrackSettings & { displaySurface?: string }
+        )?.displaySurface;
+        if (surface !== 'monitor') {
+          next.getTracks().forEach((t) => t.stop());
+          throw new Error('Please share your entire monitor, not a single tab or window.');
+        }
+        screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = next;
+        setLiveScreenStream(next);
+        setDeviceBlocked(false);
+        setDeviceBlockKind(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not restore screen share';
+        setStartError(message);
+        toastError(message);
+      } finally {
+        setRestoringDevices(false);
+      }
+      return;
+    }
+
+    const stream = streamRef.current ?? liveStream;
+    if (!stream) return;
+    setRestoringDevices(true);
+    setStartError(null);
+    try {
+      await replaceStreamTracks(stream, mediaRequirements);
+      if (!streamMeetsRequirements(stream, mediaRequirements)) {
+        throw new Error('Camera or microphone is still not active.');
+      }
+      setLiveStream(stream);
+      setDeviceBlocked(false);
+      setDeviceBlockKind(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not restore devices';
+      setStartError(message);
+      toastError(message);
+    } finally {
+      setRestoringDevices(false);
+    }
+  }, [deviceBlockKind, liveStream, mediaRequirements]);
+
   const handleStart = useCallback(
-    async (stream: MediaStream | null) => {
+    async (
+      stream: MediaStream | null,
+      screenStream: MediaStream | null,
+      preflightExternalDisplay: boolean,
+    ) => {
       if (!token || !data) return;
+      const requirements: MediaRequirements = {
+        camera: data.requirements?.camera ?? true,
+        mic: data.requirements?.mic ?? true,
+      };
+      const needsMedia = requirements.camera || requirements.mic;
+      if (needsMedia && !streamMeetsRequirements(stream, requirements)) {
+        setStartError('Camera and microphone must be active before you can start.');
+        toastError('Camera and microphone must be active before you can start.');
+        return;
+      }
+
       setStarting(true);
       setStartError(null);
+      setRecordingReady(false);
 
       if (data.status === 'STARTED') {
         partNoRef.current = 2;
@@ -305,6 +411,7 @@ export default function TechInterviewPage({
         const payload: TechTestStartPayload = {
           token,
           accepted_rules: true,
+          preflight_external_display: preflightExternalDisplay,
         };
 
         const result = await api<CandidateAssessmentStartResult>(
@@ -313,10 +420,16 @@ export default function TechInterviewPage({
         );
 
         streamRef.current = stream;
+        screenStreamRef.current = screenStream;
         setLiveStream(stream);
+        setLiveScreenStream(screenStream);
         recordingStartedAt.current = new Date().toISOString();
+
         if (stream) {
           await startRecorder(stream);
+          setRecordingReady(true);
+        } else {
+          setRecordingReady(true);
         }
 
         const capMs = (data.assessment.duration_minutes + 2) * 60_000;
@@ -330,6 +443,8 @@ export default function TechInterviewPage({
         stream?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         setLiveStream(null);
+    setLiveScreenStream(null);
+        setRecordingReady(false);
         if (document.fullscreenElement) {
           void document.exitFullscreen().catch(() => undefined);
         }
@@ -392,10 +507,23 @@ export default function TechInterviewPage({
 
   if (phase === 'done') {
     return (
-      <TokenMessage
-        title="Thank you"
-        message="Your answers and recording were submitted. Our team will review your session."
-      />
+      <Stack
+        gap="md"
+        maw={480}
+        mx="auto"
+        py="xl"
+        px="md"
+        align="center"
+        style={{ minHeight: '60vh', background: palette.paper }}
+      >
+        <Title order={1} ta="center" style={{ color: palette.ink }}>
+          You&apos;re done
+        </Title>
+        <Text ta="center" c="dimmed">
+          Your answers and recording were submitted successfully. You can close this tab — our
+          team will review your session.
+        </Text>
+      </Stack>
     );
   }
 
@@ -408,13 +536,13 @@ export default function TechInterviewPage({
         py="xl"
         px="md"
         align="center"
-        style={{ minHeight: '60vh', background: palette.paper }}
+        style={{ minHeight: '100vh', background: palette.paper }}
       >
         <Title order={1} ta="center" style={{ color: palette.ink }}>
-          Thank you
+          Submitting…
         </Title>
         <Text ta="center" c="dimmed">
-          Your answers are saved. Uploading your recording…
+          Your answers are saved. Uploading your recording — please keep this tab open.
         </Text>
         {uploadProgress ? (
           <RecordingUploadProgress loaded={uploadProgress.loaded} total={uploadProgress.total} />
@@ -475,15 +603,33 @@ export default function TechInterviewPage({
           onStart={handleStart}
         />
       ) : (
-        <TechInterviewSitting
-          token={token}
-          data={data}
-          start={startResult}
-          stream={liveStream}
-          onPasteDetected={onPasteDetected}
-          onSubmitRequest={handleSubmit}
-          submitting={submitting}
-        />
+        <>
+          <TechInterviewSitting
+            token={token}
+            data={data}
+            start={startResult}
+            stream={liveStream}
+            recordingReady={recordingReady}
+            paused={deviceBlocked}
+            proctoringBanner={sessionBanner}
+            onPasteDetected={onPasteDetected}
+            onSubmitRequest={handleSubmit}
+            submitting={submitting}
+          />
+          {deviceBlocked ? (
+            <SessionDeviceBlockOverlay
+              message={
+                deviceBlockKind === 'mic'
+                  ? 'Restore your microphone to continue.'
+                  : deviceBlockKind === 'screen'
+                    ? 'Share your entire monitor again to continue.'
+                    : 'Restore your camera to continue.'
+              }
+              restoring={restoringDevices}
+              onResume={() => void handleResumeDevices()}
+            />
+          ) : null}
+        </>
       )}
     </div>
   );

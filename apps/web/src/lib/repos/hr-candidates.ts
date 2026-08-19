@@ -204,6 +204,7 @@ type AssessmentSittingRow = {
 
 type TechTestSittingRow = AssessmentSittingRow & {
   recording_status: RecordingStatus | null;
+  preflight_external_display: boolean | null;
 };
 
 export async function getHrCandidateDetail(
@@ -290,7 +291,7 @@ export async function getHrCandidateDetail(
     one<TechTestSittingRow>(
       `SELECT id, status, invite_deadline, duration_minutes,
               started_at, expires_at, submitted_at, late, ai_score, ai_max_score,
-              assessment_id, recording_status
+              assessment_id, recording_status, preflight_external_display
        FROM HRSYSTEM_candidate_assessments
        WHERE application_id = $1
          AND kind = 'TECH_TEST'
@@ -602,6 +603,7 @@ export async function getHrCandidateDetail(
           grading_error: gradingError,
           proctoring_flag: raw?.proctoring_flag ?? null,
           proctoring_summary: raw?.proctoring_summary ?? null,
+          preflight_external_display: sitting.preflight_external_display,
           recording: recordingPayload,
           events: eventRows,
           questions: questions.map((q) => {
@@ -643,6 +645,7 @@ export async function getHrCandidateDetail(
         ai_score: sitting.ai_score,
         ai_max_score: sitting.ai_max_score,
         recording_status: sitting.recording_status,
+        preflight_external_display: sitting.preflight_external_display,
         review,
       };
     })(),
