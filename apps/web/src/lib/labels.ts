@@ -159,6 +159,86 @@ export const COMM_STATUS: Record<CommStatus, string> = {
   CANCELLED: 'Cancelled',
 };
 
+export const EMAIL_TEMPLATE: Record<string, string> = {
+  APPLICATION_RECEIVED: 'Application received',
+  INITIAL_SHORTLIST: 'Shortlist notification',
+  REJECTION: 'Rejection',
+  ASSESSMENT_INVITE: 'Technical assessment invitation',
+  ASSESSMENT_REMINDER: 'Assessment reminder',
+  ASSESSMENT_EXPIRED: 'Assessment expired',
+  TECHTEST_INVITE: 'Recorded technical interview invitation',
+  INTERVIEW_INVITE: 'Interview invitation',
+  INTERVIEW_REMINDER: 'Interview reminder',
+  OFFER: 'Job offer',
+  HIRED: 'Hired confirmation',
+};
+
+export function emailTemplateLabel(templateKey: string): string {
+  return EMAIL_TEMPLATE[templateKey] ?? templateKey.replaceAll('_', ' ').toLowerCase();
+}
+
+type TimelineEventInput = {
+  event_type: string;
+  actor_label?: string | null;
+  payload?: unknown;
+};
+
+export function timelineEventTitle(event: TimelineEventInput): string {
+  const payload =
+    event.payload && typeof event.payload === 'object'
+      ? (event.payload as Record<string, unknown>)
+      : null;
+  const decision = payload?.decision != null ? String(payload.decision) : null;
+  const reason = payload?.reason != null ? String(payload.reason) : null;
+
+  switch (event.event_type) {
+    case 'APPLICATION_SUBMITTED':
+      return 'Application submitted';
+    case 'AI_SCREENING_COMPLETED':
+      return 'AI screening completed';
+    case 'AUTO_REJECTED':
+      return reason ? `Automatically rejected — ${reason}` : 'Automatically rejected';
+    case 'AUTO_SHORTLISTED':
+      return reason ? `Automatically shortlisted — ${reason}` : 'Automatically shortlisted';
+    case 'AUTO_ASSESSMENT_PASSED':
+      return reason
+        ? `Automatically advanced after assessment — ${reason}`
+        : 'Automatically advanced after assessment';
+    case 'HR_DECISION':
+      if (decision === 'SHORTLIST') return 'HR shortlisted this candidate';
+      if (decision === 'REJECT') return 'HR rejected this candidate';
+      if (decision === 'HOLD') return 'HR placed this candidate on hold';
+      if (decision === 'REQUEST_INFO') return 'HR requested more information';
+      if (decision === 'ADDITIONAL_INTERVIEW') return 'HR requested an additional interview';
+      if (decision === 'WITHDRAW') return 'HR marked this candidate as withdrawn';
+      return 'HR decision recorded';
+    case 'ASSESSMENT_INVITED':
+      return 'Assessment invitation sent';
+    case 'ASSESSMENT_AUTO_SCHEDULED':
+      return 'Assessment invitation scheduled';
+    case 'ASSESSMENT_INVITE_SEND_NOW':
+      return 'Assessment invitation sent immediately';
+    case 'ASSESSMENT_INVITE_CANCELLED':
+      return 'Assessment invitation cancelled';
+    case 'TECHTEST_INVITED':
+      return 'Recorded interview invitation sent';
+    case 'TECHTEST_AUTO_SCHEDULED':
+      return 'Recorded interview invitation scheduled';
+    case 'TECHTEST_INVITE_SEND_NOW':
+      return 'Recorded interview invitation sent immediately';
+    case 'TECHTEST_INVITE_CANCELLED':
+      return 'Recorded interview invitation cancelled';
+    case 'AUTO_INVITE_SKIPPED':
+      return 'Automatic invite skipped';
+    case 'ASSESSMENT_EVALUATED':
+      return 'Technical assessment graded';
+    case 'TECHTEST_EVALUATED':
+      return 'Recorded interview graded';
+    default:
+      return event.event_type.replaceAll('_', ' ').toLowerCase();
+  }
+}
+
 export const PARSE_STATUS: Record<ParseStatus, string> = {
   PENDING: 'Pending',
   DONE: 'Done',

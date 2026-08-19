@@ -1,14 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import {
-  Anchor,
   Badge,
-  Divider,
   Group,
   Stack,
   Text,
 } from '@mantine/core';
+import { formatWorkDateRange } from '@/lib/format';
 import { palette } from '@/theme';
 
 type WorkEntry = {
@@ -20,7 +18,8 @@ type WorkEntry = {
   start_date?: string;
   end?: string;
   end_date?: string;
-  duration?: string;
+  summary?: string;
+  description?: string;
   [key: string]: unknown;
 };
 
@@ -62,25 +61,25 @@ export type ParsedCv = {
   [key: string]: unknown;
 };
 
-const MAX_SKILLS = 12;
-
 function toStr(v: unknown): string {
-  if (typeof v === 'string') return v;
+  if (typeof v === 'string') {
+    const trimmed = v.trim();
+    return trimmed.toLowerCase() === 'null' ? '' : trimmed;
+  }
   if (typeof v === 'number') return String(v);
-  if (v && typeof v === 'object' && 'name' in v) return String((v as { name: unknown }).name);
+  if (v && typeof v === 'object' && 'name' in v) {
+    return toStr((v as { name: unknown }).name);
+  }
   return '';
-}
-
-function workDate(entry: WorkEntry): string {
-  const start = entry.start ?? entry.start_date ?? '';
-  const end = entry.end ?? entry.end_date ?? 'Present';
-  if (!start && !end) return entry.duration ?? '';
-  if (!start) return String(end);
-  return `${start} – ${end}`;
 }
 
 function workTitle(entry: WorkEntry): string {
   return entry.title ?? entry.role ?? entry.position ?? '';
+}
+
+function workSummary(entry: WorkEntry): string {
+  const text = entry.summary ?? entry.description ?? '';
+  return typeof text === 'string' ? text.trim() : '';
 }
 
 function educationLine(entry: EducationEntry): string {
@@ -108,39 +107,53 @@ function certLine(c: CertEntry): string {
 function langLines(languages: Record<string, unknown> | unknown[] | undefined): string[] {
   if (!languages) return [];
   if (Array.isArray(languages)) {
-    return languages.map((l) => {
-      if (typeof l === 'string') return l;
-      if (l && typeof l === 'object') {
-        const o = l as Record<string, unknown>;
-        const name = o.language ?? o.name ?? '';
-        const level = o.level ?? o.proficiency ?? '';
-        return [name, level].filter(Boolean).join(': ');
-      }
-      return '';
-    }).filter(Boolean);
+    return languages
+      .map((l) => {
+        if (typeof l === 'string') return l;
+        if (l && typeof l === 'object') {
+          const o = l as Record<string, unknown>;
+          const name = o.language ?? o.name ?? '';
+          const level = o.level ?? o.proficiency ?? '';
+          return [name, level].filter(Boolean).join(': ');
+        }
+        return '';
+      })
+      .filter(Boolean);
   }
   return Object.entries(languages)
     .map(([lang, level]) => `${lang}: ${level}`)
     .filter(([l]) => Boolean(l));
 }
 
-export function ParsedCvSummary({
-  parsed,
-  raw,
-}: {
-  parsed: ParsedCv;
-  raw: unknown;
-}) {
-  const [showRaw, setShowRaw] = useState(false);
-  const [showProjects, setShowProjects] = useState(false);
+function sortedUnique(values: string[]): string[] {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
 
-  const allSkills: string[] = [
-    ...(Array.isArray(parsed.skills) ? parsed.skills.map(toStr).filter(Boolean) : []),
-    ...(Array.isArray(parsed.technologies) ? parsed.technologies.map(toStr).filter(Boolean) : []),
-  ];
-  const uniqueSkills = [...new Set(allSkills)];
-  const visibleSkills = uniqueSkills.slice(0, MAX_SKILLS);
-  const hiddenSkillCount = uniqueSkills.length - MAX_SKILLS;
+function SkillChips({ label, items }: { label: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <Text size="sm" fw={600} mb={6}>
+        {label}
+      </Text>
+      <Group gap={6} wrap="wrap">
+        {items.map((s) => (
+          <Badge key={s} variant="light" color="accent" size="sm">
+            {s}
+          </Badge>
+        ))}
+      </Group>
+    </div>
+  );
+}
+
+export function ParsedCvSummary({ parsed }: { parsed: ParsedCv }) {
+  const skills = sortedUnique(
+    Array.isArray(parsed.skills) ? parsed.skills.map(toStr).filter(Boolean) : [],
+  );
+  const technologies = sortedUnique(
+    Array.isArray(parsed.technologies) ? parsed.technologies.map(toStr).filter(Boolean) : [],
+  );
 
   const workEntries: WorkEntry[] = Array.isArray(parsed.work_experience)
     ? (parsed.work_experience as WorkEntry[]).slice().reverse()
@@ -159,55 +172,58 @@ export function ParsedCvSummary({
     : [];
 
   const langs = langLines(parsed.languages as Record<string, unknown> | unknown[] | undefined);
-
   const yearsExp = parsed.years_experience;
 
   return (
     <Stack gap="sm">
       {yearsExp != null && (
-        <Group gap="xs">
-          <Text fw={700} size="lg" style={{ color: palette.accent }}>
-            {yearsExp} {yearsExp === 1 ? 'year' : 'years'} experience
-          </Text>
-        </Group>
+        <Text fw={700} size="lg" style={{ color: palette.accent }}>
+          {yearsExp} {yearsExp === 1 ? 'year' : 'years'} experience
+        </Text>
       )}
 
-      {uniqueSkills.length > 0 && (
-        <div>
-          <Text size="sm" fw={600} mb={6}>Skills &amp; technologies</Text>
-          <Group gap={6} wrap="wrap">
-            {visibleSkills.map((s) => (
-              <Badge key={s} variant="light" color="accent" size="sm">
-                {s}
-              </Badge>
-            ))}
-            {hiddenSkillCount > 0 && (
-              <Badge variant="outline" color="ink" size="sm">
-                +{hiddenSkillCount} more
-              </Badge>
-            )}
-          </Group>
-        </div>
-      )}
+      <SkillChips label="Skills" items={skills} />
+      <SkillChips label="Technologies" items={technologies} />
 
       {workEntries.length > 0 && (
         <div>
-          <Text size="sm" fw={600} mb={6}>Work history</Text>
-          <Stack gap={8}>
+          <Text size="sm" fw={600} mb={6}>
+            Work history
+          </Text>
+          <Stack gap={12}>
             {workEntries.map((entry, i) => {
               const company = entry.company ?? '';
               const title = workTitle(entry);
-              const dates = workDate(entry);
+              const dates = formatWorkDateRange(
+                entry.start ?? entry.start_date,
+                entry.end ?? entry.end_date,
+              );
+              const summary = workSummary(entry);
               return (
                 <div key={i}>
                   <Group gap={4} wrap="wrap">
-                    {company && <Text size="sm" fw={600}>{company}</Text>}
-                    {company && title && <Text size="sm" c="dimmed">·</Text>}
-                    {title && <Text size="sm">{title}</Text>}
+                    {company ? (
+                      <Text size="sm" fw={600}>
+                        {company}
+                      </Text>
+                    ) : null}
+                    {company && title ? (
+                      <Text size="sm" c="dimmed">
+                        ·
+                      </Text>
+                    ) : null}
+                    {title ? <Text size="sm">{title}</Text> : null}
                   </Group>
-                  {dates && (
-                    <Text size="xs" c="dimmed">{dates}</Text>
-                  )}
+                  {dates ? (
+                    <Text size="xs" c="dimmed">
+                      {dates}
+                    </Text>
+                  ) : null}
+                  {summary ? (
+                    <Text size="sm" mt={4}>
+                      {summary}
+                    </Text>
+                  ) : null}
                 </div>
               );
             })}
@@ -217,10 +233,14 @@ export function ParsedCvSummary({
 
       {eduEntries.length > 0 && (
         <div>
-          <Text size="sm" fw={600} mb={6}>Education</Text>
+          <Text size="sm" fw={600} mb={6}>
+            Education
+          </Text>
           <Stack gap={4}>
             {eduEntries.map((e, i) => (
-              <Text key={i} size="sm">{educationLine(e)}</Text>
+              <Text key={i} size="sm">
+                {educationLine(e)}
+              </Text>
             ))}
           </Stack>
         </div>
@@ -228,10 +248,14 @@ export function ParsedCvSummary({
 
       {langs.length > 0 && (
         <div>
-          <Text size="sm" fw={600} mb={4}>Languages</Text>
+          <Text size="sm" fw={600} mb={4}>
+            Languages
+          </Text>
           <Group gap="xs" wrap="wrap">
             {langs.map((l, i) => (
-              <Text key={i} size="sm">{l}</Text>
+              <Text key={i} size="sm">
+                {l}
+              </Text>
             ))}
           </Group>
         </div>
@@ -239,10 +263,14 @@ export function ParsedCvSummary({
 
       {certs.length > 0 && (
         <div>
-          <Text size="sm" fw={600} mb={4}>Certifications</Text>
+          <Text size="sm" fw={600} mb={4}>
+            Certifications
+          </Text>
           <Stack gap={4}>
             {certs.map((c, i) => (
-              <Text key={i} size="sm">{certLine(c)}</Text>
+              <Text key={i} size="sm">
+                {certLine(c)}
+              </Text>
             ))}
           </Stack>
         </div>
@@ -250,59 +278,25 @@ export function ParsedCvSummary({
 
       {projects.length > 0 && (
         <div>
-          <Anchor
-            component="button"
-            size="sm"
-            onClick={() => setShowProjects((p) => !p)}
-            style={{ color: palette.accent }}
-          >
-            {showProjects ? `Hide projects` : `Show ${projects.length} project${projects.length === 1 ? '' : 's'}`}
-          </Anchor>
-          {showProjects ? (
-            <Stack gap={8} mt={8}>
-              {projects.map((p, i) => {
-                const name = p.name ?? p.title ?? `Project ${i + 1}`;
-                const desc = p.description ?? '';
-                return (
-                  <div key={i}>
-                    <Text size="sm" fw={600}>{name}</Text>
-                    {desc && <Text size="sm" c="dimmed">{desc}</Text>}
-                  </div>
-                );
-              })}
-            </Stack>
-          ) : null}
+          <Text size="sm" fw={600} mb={6}>
+            Projects
+          </Text>
+          <Stack gap={8}>
+            {projects.map((p, i) => {
+              const name = p.name ?? p.title ?? `Project ${i + 1}`;
+              const desc = p.description ?? '';
+              return (
+                <div key={i}>
+                  <Text size="sm" fw={600}>
+                    {name}
+                  </Text>
+                  {desc ? <Text size="sm" c="dimmed">{desc}</Text> : null}
+                </div>
+              );
+            })}
+          </Stack>
         </div>
       )}
-
-      <Divider style={{ borderColor: `${palette.ink}14` }} />
-
-      <Anchor
-        component="button"
-        size="xs"
-        c="dimmed"
-        onClick={() => setShowRaw((s) => !s)}
-      >
-        {showRaw ? 'Hide raw' : 'View raw'}
-      </Anchor>
-
-      {showRaw ? (
-        <Text
-          size="xs"
-          ff="monospace"
-          style={{
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-all',
-            background: `${palette.ink}08`,
-            padding: '8px 12px',
-            borderRadius: 6,
-            maxHeight: 320,
-            overflowY: 'auto',
-          }}
-        >
-          {JSON.stringify(raw, null, 2)}
-        </Text>
-      ) : null}
     </Stack>
   );
 }

@@ -381,14 +381,41 @@ export interface HrCandidatesDeleteResult {
   candidate_deleted: boolean;
 }
 
+export interface HrApplicationAnswers {
+  personal: {
+    full_name: string;
+    email: string;
+    phone: string | null;
+    country: string | null;
+    city: string | null;
+    age: number | null;
+    military_status: string | null;
+    marital_status: string | null;
+  };
+  professional: {
+    employment_status: string | null;
+    current_company: string | null;
+    current_position: string | null;
+    years_experience: number | null;
+    expected_salary: number | null;
+    salary_currency: string | null;
+    notice_period_days: number | null;
+    available_from: string | null;
+  };
+  questions: Array<{
+    question_key: string;
+    label: string;
+    answer: unknown | null;
+    answered: boolean;
+  }>;
+}
+
 export interface HrCandidatesGetResult {
   candidate: Candidate;
   application: Application;
   job: Job;
-  answers: Array<{ question_key: string; label: string; answer: unknown }>;
+  application_answers: HrApplicationAnswers;
   cv: {
-    signed_url: string;
-    expires_in: number;
     parse_status: string;
     parsed: unknown;
     original_name: string;
