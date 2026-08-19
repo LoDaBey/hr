@@ -7,7 +7,10 @@ import {
 } from '@/lib/pipeline/invites';
 import { appendEvent } from '@/lib/repos/events';
 import { getAppSettings } from '@/lib/repos/app-settings';
-import { insertWorkflowError } from '@/lib/repos/workflow-errors';
+import {
+  insertWorkflowError,
+  resolveGradingErrorsForSitting,
+} from '@/lib/repos/workflow-errors';
 import type { AssessmentGradeData, AssessmentGradeResultItem } from '@/types/api';
 import type { QuestionType, Stage } from '@/types/domain';
 
@@ -438,6 +441,8 @@ export async function gradeAssessment(
     );
   });
 
+  await resolveGradingErrorsForSitting(sitting.application_id, sittingId);
+
   const overallExists = await one<{ id: string }>(
     `SELECT id FROM HRSYSTEM_assessment_evaluations
      WHERE candidate_assessment_id = $1 AND is_overall = true
@@ -845,4 +850,6 @@ export async function evaluateTechTest(
       ],
     );
   });
+
+  await resolveGradingErrorsForSitting(sitting.application_id, sittingId);
 }
