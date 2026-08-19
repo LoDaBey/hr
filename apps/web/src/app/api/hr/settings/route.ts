@@ -11,6 +11,11 @@ const patchSchema = z.object({
   auto_send_assessment_delay_minutes: z.number().int().min(0).max(7 * 24 * 60).optional(),
   auto_send_techtest: z.boolean().optional(),
   auto_send_techtest_delay_minutes: z.number().int().min(0).max(7 * 24 * 60).optional(),
+  auto_reject_hard_fail: z.boolean().optional(),
+  auto_shortlist_enabled: z.boolean().optional(),
+  auto_shortlist_min_score: z.number().int().min(0).max(100).optional(),
+  auto_shortlist_min_confidence: z.number().min(0).max(1).optional(),
+  auto_reject_max_score: z.number().int().min(0).max(100).optional(),
 });
 
 function toResult(row: Awaited<ReturnType<typeof getAppSettings>>): HrSettingsResult {
@@ -19,6 +24,11 @@ function toResult(row: Awaited<ReturnType<typeof getAppSettings>>): HrSettingsRe
     auto_send_assessment_delay_minutes: row.auto_send_assessment_delay_minutes,
     auto_send_techtest: row.auto_send_techtest,
     auto_send_techtest_delay_minutes: row.auto_send_techtest_delay_minutes,
+    auto_reject_hard_fail: row.auto_reject_hard_fail,
+    auto_shortlist_enabled: row.auto_shortlist_enabled,
+    auto_shortlist_min_score: row.auto_shortlist_min_score,
+    auto_shortlist_min_confidence: Number(row.auto_shortlist_min_confidence),
+    auto_reject_max_score: row.auto_reject_max_score,
     updated_at: row.updated_at,
   };
 }

@@ -311,7 +311,7 @@ export interface HrDashboardPayload {
 export interface HrDashboardTotals {
   applicants: number;
   new_today: number;
-  awaiting_review: number;
+  needs_review: number;
   assessments_pending: number;
   assessments_completed: number;
   techtests_pending: number;
@@ -561,6 +561,11 @@ export interface HrSettingsResult {
   auto_send_assessment_delay_minutes: number;
   auto_send_techtest: boolean;
   auto_send_techtest_delay_minutes: number;
+  auto_reject_hard_fail: boolean;
+  auto_shortlist_enabled: boolean;
+  auto_shortlist_min_score: number;
+  auto_shortlist_min_confidence: number;
+  auto_reject_max_score: number;
   updated_at: string;
 }
 
@@ -569,6 +574,11 @@ export interface HrSettingsPatchPayload {
   auto_send_assessment_delay_minutes?: number;
   auto_send_techtest?: boolean;
   auto_send_techtest_delay_minutes?: number;
+  auto_reject_hard_fail?: boolean;
+  auto_shortlist_enabled?: boolean;
+  auto_shortlist_min_score?: number;
+  auto_shortlist_min_confidence?: number;
+  auto_reject_max_score?: number;
 }
 
 export interface HrInterviewSchedulePayload {

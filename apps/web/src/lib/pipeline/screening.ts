@@ -1,8 +1,14 @@
 import 'server-only';
 import { signedDeliveryUrl } from '@/lib/cloudinary';
 import { runAutomation } from '@/lib/automation';
-import { one, query } from '@/lib/db';
+import { one, query, tx } from '@/lib/db';
+import {
+  auditAutoInviteSkipped,
+  issueInvite,
+} from '@/lib/pipeline/invites';
 import { appendEvent } from '@/lib/repos/events';
+import { getAppSettings } from '@/lib/repos/app-settings';
+import { enqueueCommunication } from '@/lib/repos/communications';
 import { insertWorkflowError } from '@/lib/repos/workflow-errors';
 import type { CvParseData, ScreeningRunData } from '@/types/api';
 import type {
@@ -12,6 +18,7 @@ import type {
   HardRequirementFailure,
   Job,
   Recommendation,
+  Stage,
 } from '@/types/domain';
 
 const RECOMMENDATIONS: Recommendation[] = [
@@ -288,12 +295,57 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       ],
     );
 
+    const settings = await getAppSettings();
+    const candidate = await one<{ email: string; full_name: string }>(
+      `SELECT email, full_name FROM HRSYSTEM_candidates WHERE id = $1`,
+      [application.candidate_id],
+    );
+    if (!candidate) return;
+
+    const shortlistMinScore = Number.isFinite(Number(job.shortlist_threshold))
+      ? Number(job.shortlist_threshold)
+      : settings.auto_shortlist_min_score;
+    const minConfidence = Number(settings.auto_shortlist_min_confidence);
+
+    type AutoOutcome = 'review' | 'reject' | 'shortlist';
+    let outcome: AutoOutcome = 'review';
+    let reason = 'Awaiting HR review';
+
+    if (rejectHardFail && settings.auto_reject_hard_fail) {
+      outcome = 'reject';
+      reason = 'Hard requirement failed';
+    } else if (score !== null && score <= settings.auto_reject_max_score) {
+      outcome = 'reject';
+      reason = `Score ${score} at or below auto-reject threshold (${settings.auto_reject_max_score})`;
+    } else if (
+      settings.auto_shortlist_enabled &&
+      score !== null &&
+      score >= shortlistMinScore &&
+      confidence !== null &&
+      confidence >= minConfidence &&
+      missing.length === 0 &&
+      !rejectHardFail
+    ) {
+      outcome = 'shortlist';
+      reason = `Score ${score} met shortlist threshold (${shortlistMinScore}) with confidence ${confidence}`;
+    }
+
+    const toStage: Stage =
+      outcome === 'reject'
+        ? 'INITIAL_REJECTED'
+        : outcome === 'shortlist'
+          ? 'INITIAL_SHORTLISTED'
+          : 'INITIAL_SCREENING_REVIEW';
+
     await one(
       `UPDATE HRSYSTEM_applications
-       SET screening_score = $1, stage = 'INITIAL_SCREENING_REVIEW'
-       WHERE id = $2
+       SET screening_score = $1,
+           stage = $2::HRSYSTEM_app_stage,
+           status = CASE WHEN $3 THEN 'REJECTED'::HRSYSTEM_app_status ELSE status END,
+           updated_at = now()
+       WHERE id = $4
          AND stage IN ('APPLICATION_RECEIVED', 'CV_PROCESSING', 'INITIAL_SCREENING')`,
-      [score, applicationId],
+      [score, toStage, outcome === 'reject', applicationId],
     );
 
     await appendEvent({
@@ -302,7 +354,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       job_id: application.job_id,
       event_type: 'AI_SCREENING_COMPLETED',
       from_stage: application.stage,
-      to_stage: 'INITIAL_SCREENING_REVIEW',
+      to_stage: toStage,
       actor_type: 'AI',
       payload: {
         score,
@@ -311,6 +363,80 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         missing_requirements: missing,
       },
     });
+
+    if (outcome === 'reject') {
+      await appendEvent({
+        application_id: applicationId,
+        candidate_id: application.candidate_id,
+        job_id: application.job_id,
+        event_type: 'AUTO_REJECTED',
+        from_stage: application.stage,
+        to_stage: toStage,
+        actor_type: 'SYSTEM',
+        actor_label: 'Automation',
+        payload: { reason },
+      });
+      await enqueueCommunication({
+        candidate_id: application.candidate_id,
+        application_id: applicationId,
+        template_key: 'REJECTION',
+        to_email: candidate.email,
+        variables: {
+          candidate_name: candidate.full_name,
+          job_title: job.title,
+          hr_name: 'HR Team',
+        },
+        dedupe_key: `${applicationId}:AUTO_REJECTION:v1`,
+      });
+    } else if (outcome === 'shortlist') {
+      await appendEvent({
+        application_id: applicationId,
+        candidate_id: application.candidate_id,
+        job_id: application.job_id,
+        event_type: 'AUTO_SHORTLISTED',
+        from_stage: application.stage,
+        to_stage: toStage,
+        actor_type: 'SYSTEM',
+        actor_label: 'Automation',
+        payload: { reason },
+      });
+      await enqueueCommunication({
+        candidate_id: application.candidate_id,
+        application_id: applicationId,
+        template_key: 'INITIAL_SHORTLIST',
+        to_email: candidate.email,
+        variables: {
+          candidate_name: candidate.full_name,
+          job_title: job.title,
+          hr_name: 'HR Team',
+        },
+        dedupe_key: `${applicationId}:AUTO_INITIAL_SHORTLIST:v1`,
+      });
+
+      const sendAt = new Date(
+        Date.now() + settings.auto_send_assessment_delay_minutes * 60_000,
+      );
+      await tx(async (client) => {
+        const inviteResult = await issueInvite(applicationId, {
+          kind: 'ASSESSMENT',
+          sendAt,
+          actor: { type: 'SYSTEM', label: 'Automation' },
+          client,
+          autoScheduled: true,
+        });
+        if (!inviteResult.ok && inviteResult.reason === 'no_assessment') {
+          await auditAutoInviteSkipped(client, {
+            applicationId,
+            candidateId: application.candidate_id,
+            jobId: application.job_id,
+            stage: 'INITIAL_SHORTLISTED',
+            kind: 'ASSESSMENT',
+            reason: 'No assessment configured for this job',
+            actor: { type: 'SYSTEM', label: 'Automation' },
+          });
+        }
+      });
+    }
   } catch (error) {
     console.error('runCvParseAndScreening', applicationId, error);
     try {

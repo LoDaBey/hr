@@ -17,7 +17,7 @@ type JobCountRow = {
 type TotalsRow = {
   applicants: number;
   new_today: number;
-  awaiting_review: number;
+  needs_review: number;
   assessments_pending: number;
   assessments_completed: number;
   techtests_pending: number;
@@ -53,8 +53,13 @@ export async function getHrDashboard(): Promise<HrDashboardResult> {
       `SELECT
          count(*)::int AS applicants,
          count(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int AS new_today,
-         count(*) FILTER (WHERE stage = 'INITIAL_SCREENING_REVIEW' AND status = 'ACTIVE')::int
-           AS awaiting_review,
+         count(*) FILTER (
+           WHERE stage IN (
+             'INITIAL_SCREENING_REVIEW',
+             'TECH_ASSESSMENT_REVIEW',
+             'RECORDED_TECH_REVIEW'
+           ) AND status = 'ACTIVE'
+         )::int AS needs_review,
          count(*) FILTER (
            WHERE stage IN ('TECH_ASSESSMENT_SENT','TECH_ASSESSMENT_STARTED') AND status = 'ACTIVE'
          )::int AS assessments_pending,
@@ -79,7 +84,7 @@ export async function getHrDashboard(): Promise<HrDashboardResult> {
   const totals: HrDashboardTotals = {
     applicants: totalsRow?.applicants ?? 0,
     new_today: totalsRow?.new_today ?? 0,
-    awaiting_review: totalsRow?.awaiting_review ?? 0,
+    needs_review: totalsRow?.needs_review ?? 0,
     assessments_pending: totalsRow?.assessments_pending ?? 0,
     assessments_completed: totalsRow?.assessments_completed ?? 0,
     techtests_pending: totalsRow?.techtests_pending ?? 0,

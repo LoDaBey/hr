@@ -105,9 +105,9 @@ export function DashboardView() {
   const { totals, by_job } = data;
 
   const tiles: Array<{ label: string; value: number }> = [
+    { label: 'Needs your review', value: totals.needs_review },
     { label: 'Applicants', value: totals.applicants },
     { label: 'New today', value: totals.new_today },
-    { label: 'Awaiting review', value: totals.awaiting_review },
     { label: 'Assessments pending', value: totals.assessments_pending },
     { label: 'Tech tests pending', value: totals.techtests_pending },
     { label: 'Interviews upcoming', value: totals.interviews_upcoming },
