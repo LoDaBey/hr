@@ -3,7 +3,6 @@
 import {
   Badge,
   Box,
-  Grid,
   Group,
   Loader,
   Paper,
@@ -301,114 +300,112 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         />
       </Box>
 
-      <Grid gutter="md" align="flex-start">
-        <Grid.Col span={{ base: 12, lg: 7 }}>
-          <Section title="Application answers">
-            <ApplicationAnswersSection answers={application_answers} />
-          </Section>
-        </Grid.Col>
+      <Stack gap="md">
+        <Group align="flex-start" gap="md" wrap="wrap" style={{ alignItems: 'flex-start' }}>
+          <Box style={{ flex: '7 1 400px', minWidth: 0, maxWidth: '100%' }}>
+            <Section title="Application answers">
+              <ApplicationAnswersSection answers={application_answers} />
+            </Section>
+          </Box>
 
-        <Grid.Col span={{ base: 12, lg: 5 }}>
-          <Section title="CV">
-            {cv ? (
-              <>
-                <Group>
-                  <MotionButton
-                    component="a"
-                    href={`/api/hr/candidates/${application.id}/cv`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="cursor-pointer rounded-lg"
-                    aria-label="Open CV"
-                  >
-                    Open CV
-                  </MotionButton>
-                  <Text size="sm" c="dimmed">
-                    {cv.original_name}
-                  </Text>
-                  {cvStatusMessage ? (
-                    <Badge color="warning" variant="light">
-                      {cvStatusMessage}
-                    </Badge>
-                  ) : null}
-                </Group>
-                <Text fw={600}>Extracted from CV</Text>
-                {cv.parsed ? (
-                  <ParsedCvSummary parsed={cv.parsed as import('./ParsedCvSummary').ParsedCv} />
-                ) : (
-                  <Text c="dimmed">No parsed summary yet.</Text>
-                )}
-              </>
-            ) : (
-              <Text c="dimmed">No CV uploaded. Request one if this role requires it.</Text>
-            )}
-          </Section>
-        </Grid.Col>
+          <Box style={{ flex: '5 1 280px', minWidth: 0, maxWidth: '100%' }}>
+            <Section title="CV">
+              {cv ? (
+                <>
+                  <Group>
+                    <MotionButton
+                      component="a"
+                      href={`/api/hr/candidates/${application.id}/cv`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="cursor-pointer rounded-lg"
+                      aria-label="Open CV"
+                    >
+                      Open CV
+                    </MotionButton>
+                    <Text size="sm" c="dimmed">
+                      {cv.original_name}
+                    </Text>
+                    {cvStatusMessage ? (
+                      <Badge color="warning" variant="light">
+                        {cvStatusMessage}
+                      </Badge>
+                    ) : null}
+                  </Group>
+                  <Text fw={600}>Extracted from CV</Text>
+                  {cv.parsed ? (
+                    <ParsedCvSummary parsed={cv.parsed as import('./ParsedCvSummary').ParsedCv} />
+                  ) : (
+                    <Text c="dimmed">No parsed summary yet.</Text>
+                  )}
+                </>
+              ) : (
+                <Text c="dimmed">No CV uploaded. Request one if this role requires it.</Text>
+              )}
+            </Section>
+          </Box>
+        </Group>
 
-        <Grid.Col span={12}>
-          <Section title="Screening result">
-            <ScreeningResultSection screening={screening} />
-          </Section>
-        </Grid.Col>
+        <Section title="Screening result">
+          <ScreeningResultSection screening={screening} />
+        </Section>
 
         {assessment?.review ? (
-          <Grid.Col span={12}>
-            <Section title="Technical assessment review">
-              <AssessmentReview
-                review={{
-                  id: assessment.id,
-                  late: assessment.late,
-                  ai_score: assessment.ai_score,
-                  ai_max_score: assessment.ai_max_score,
-                  submitted_at: assessment.submitted_at,
-                  overall_feedback: assessment.review.overall_feedback,
-                  questions: assessment.review.questions,
-                }}
-              />
-            </Section>
-          </Grid.Col>
+          <Section title="Technical assessment review">
+            <AssessmentReview
+              review={{
+                id: assessment.id,
+                late: assessment.late,
+                ai_score: assessment.ai_score,
+                ai_max_score: assessment.ai_max_score,
+                submitted_at: assessment.submitted_at,
+                overall_feedback: assessment.review.overall_feedback,
+                questions: assessment.review.questions,
+              }}
+            />
+          </Section>
         ) : null}
 
         {techtest?.review ? (
-          <Grid.Col span={12}>
-            <Section title="Recorded technical interview">
-              <TechTestReview
-                review={{
-                  id: techtest.id,
-                  late: techtest.late,
-                  ai_score: techtest.ai_score,
-                  ai_max_score: techtest.ai_max_score,
-                  submitted_at: techtest.submitted_at,
-                  overall_feedback: techtest.review.overall_feedback,
-                  questions: techtest.review.questions,
-                  recording_status: techtest.recording_status,
-                  recording: techtest.review.recording,
-                  proctoring_flag: techtest.review.proctoring_flag,
-                  proctoring_summary: techtest.review.proctoring_summary,
-                  events: techtest.review.events,
-                  session_started_at: techtest.started_at,
-                }}
-              />
-            </Section>
-          </Grid.Col>
+          <Section title="Recorded technical interview">
+            <TechTestReview
+              review={{
+                id: techtest.id,
+                late: techtest.late,
+                ai_score: techtest.ai_score,
+                ai_max_score: techtest.ai_max_score,
+                submitted_at: techtest.submitted_at,
+                overall_feedback: techtest.review.overall_feedback,
+                questions: techtest.review.questions,
+                recording_status: techtest.recording_status,
+                recording: techtest.review.recording,
+                proctoring_flag: techtest.review.proctoring_flag,
+                proctoring_summary: techtest.review.proctoring_summary,
+                events: techtest.review.events,
+                session_started_at: techtest.started_at,
+              }}
+            />
+          </Section>
         ) : null}
 
-        <Grid.Col span={{ base: 12, lg: 5 }}>
-          <Section title="Emails">
-            {communications.length === 0 ? (
-              <Text c="dimmed">No emails queued for this candidate yet.</Text>
-            ) : (
-              <CandidateEmailsSection communications={communications} onChanged={refresh} />
-            )}
-          </Section>
-        </Grid.Col>
+        <Group align="flex-start" gap="md" wrap="wrap" style={{ alignItems: 'flex-start' }}>
+          <Box style={{ flex: '5 1 280px', minWidth: 0, maxWidth: '100%' }}>
+            <Section title="Emails">
+              {communications.length === 0 ? (
+                <Text c="dimmed">No emails queued for this candidate yet.</Text>
+              ) : (
+                <CandidateEmailsSection communications={communications} onChanged={refresh} />
+              )}
+            </Section>
+          </Box>
 
-        <Grid.Col span={{ base: 12, lg: 7 }}>
-          <Section title="Timeline">
-            <CandidateTimelineSection timeline={timeline} />
-          </Section>
-        </Grid.Col>
-      </Grid>
+          <Box style={{ flex: '7 1 400px', minWidth: 0, maxWidth: '100%' }}>
+            <Section title="Timeline">
+              <CandidateTimelineSection timeline={timeline} />
+            </Section>
+          </Box>
+        </Group>
+      </Stack>
     </Stack>
   );
 }

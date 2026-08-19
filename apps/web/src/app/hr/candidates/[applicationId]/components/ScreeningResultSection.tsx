@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Badge, Group, List, Stack, Text } from '@mantine/core';
+import { Alert, Badge, Group, List, SimpleGrid, Stack, Text } from '@mantine/core';
 import { stringList } from '@/lib/display';
 import { HR_DECISION, RECOMMENDATION, labelOf } from '@/lib/labels';
 import { palette } from '@/theme';
@@ -17,10 +17,20 @@ type ScreeningData = {
   hr_decision: string | null;
 };
 
-function BulletList({ label, items }: { label: string; items: string[] }) {
+function BulletList({
+  label,
+  items,
+  accentColor,
+}: {
+  label: string;
+  items: string[];
+  accentColor?: 'warning' | 'accent' | 'ink';
+}) {
+  const labelColor = accentColor === 'warning' ? palette.warning : palette.ink;
+
   return (
     <div>
-      <Text size="sm" fw={600} mb={4}>
+      <Text size="sm" fw={700} mb={6} style={{ color: labelColor }}>
         {label}
       </Text>
       {items.length === 0 ? (
@@ -56,40 +66,48 @@ export function ScreeningResultSection({ screening }: { screening: ScreeningData
   );
 
   return (
-    <Stack gap="md">
-      <Group align="baseline" gap="md" wrap="wrap">
-        <Group gap="xs" align="baseline">
+    <Stack gap="lg">
+      <Group align="flex-end" gap="lg" wrap="wrap">
+        <Group gap="sm" align="flex-end">
           <Text
             fw={700}
-            style={{ fontSize: '2.5rem', lineHeight: 1, color: palette.ink }}
+            style={{
+              fontSize: '3.5rem',
+              lineHeight: 0.9,
+              color: palette.ink,
+              letterSpacing: '-0.03em',
+            }}
           >
             {screening.score ?? '—'}
           </Text>
-          <Text size="lg" c="dimmed">
+          <Text size="xl" c="dimmed" pb={6}>
             / 100
           </Text>
+          <Badge color="accent" variant="light" size="xl" pb={4}>
+            {recommendationLabel}
+          </Badge>
         </Group>
-        <Badge color="accent" variant="light" size="lg">
-          {recommendationLabel}
-        </Badge>
-        {screening.confidence != null ? (
-          <Text size="sm" c="dimmed">
-            Confidence {screening.confidence}
-          </Text>
-        ) : null}
         {screening.hr_decision ? (
-          <Badge color="accent" variant="outline">
+          <Badge color="accent" variant="outline" size="md">
             HR override: {labelOf(HR_DECISION, screening.hr_decision)}
           </Badge>
         ) : null}
       </Group>
 
-      <BulletList label="Strengths" items={strengths} />
-      <BulletList label="Weaknesses" items={weaknesses} />
-      <BulletList label="Missing" items={missing} />
+      {screening.confidence != null ? (
+        <Text size="xs" c="dimmed">
+          Confidence {screening.confidence}
+        </Text>
+      ) : null}
+
+      <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
+        <BulletList label="Missing" items={missing} accentColor="warning" />
+        <BulletList label="Strengths" items={strengths} />
+        <BulletList label="Weaknesses" items={weaknesses} />
+      </SimpleGrid>
 
       {screening.reasoning_summary ? (
-        <Text style={{ lineHeight: 1.6 }}>{screening.reasoning_summary}</Text>
+        <Text style={{ lineHeight: 1.65, color: palette.ink }}>{screening.reasoning_summary}</Text>
       ) : null}
     </Stack>
   );

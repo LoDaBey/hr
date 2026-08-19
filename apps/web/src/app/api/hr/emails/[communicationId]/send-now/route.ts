@@ -71,7 +71,7 @@ export async function POST(
       return jsonError(404, 'NOT_FOUND', 'Queued email not found');
     }
     if (outcome === 'failed') {
-      return jsonError(500, 'DISPATCH_FAILED', 'Email could not be sent');
+      return jsonError(500, 'INTERNAL_ERROR', 'Email could not be sent');
     }
 
     const refreshed = await one<Communication>(
