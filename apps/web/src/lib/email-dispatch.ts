@@ -2,6 +2,7 @@ import 'server-only';
 import { runAutomation } from '@/lib/automation';
 import { renderTemplate } from '@/lib/email-render';
 import {
+  claimCommunicationForSend,
   claimPendingCommunications,
   findCommunicationById,
   markCommunicationFailed,
@@ -9,7 +10,7 @@ import {
 } from '@/lib/repos/communications';
 import { findEmailTemplateByKey } from '@/lib/repos/email-templates';
 import { insertWorkflowError } from '@/lib/repos/workflow-errors';
-import type { EmailDispatchResult, EmailSendData } from '@/types/api';
+import type { EmailDispatchResult, EmailSendData, HrCommunicationDispatchResult } from '@/types/api';
 import type { Communication } from '@/types/domain';
 
 function variablesRecord(variables: unknown): Record<string, unknown> {
@@ -24,6 +25,16 @@ function fromName(variables: unknown): string {
   const name = vars.hr_name;
   if (typeof name === 'string' && name.trim()) return name.trim();
   return 'HR Team';
+}
+
+function toDispatchResult(row: Communication): HrCommunicationDispatchResult {
+  return {
+    id: row.id,
+    status: row.status,
+    sent_at: row.sent_at,
+    scheduled_for: row.scheduled_for,
+    last_error: row.last_error,
+  };
 }
 
 async function dispatchOne(row: Communication): Promise<'sent' | 'failed'> {
@@ -81,16 +92,37 @@ async function dispatchOne(row: Communication): Promise<'sent' | 'failed'> {
   }
 }
 
-/** Send one queued communication immediately (after scheduled_for is due). */
+/** Send one communication row that was already claimed (attempts incremented). */
+export async function dispatchClaimedCommunication(
+  row: Communication,
+): Promise<'sent' | 'failed'> {
+  return dispatchOne(row);
+}
+
+export type DispatchCommunicationByIdResult =
+  | { outcome: 'sent' | 'failed'; communication: HrCommunicationDispatchResult }
+  | { outcome: 'not_found' }
+  | { outcome: 'not_pending' | 'already_sent'; communication: HrCommunicationDispatchResult };
+
+/** Claim and send one queued communication immediately. */
 export async function dispatchCommunicationById(
   id: string,
-): Promise<'sent' | 'failed' | 'not_found' | 'not_pending'> {
-  const row = await findCommunicationById(id);
-  if (!row) return 'not_found';
-  if (row.status === 'SENT') return 'sent';
-  if (row.status !== 'PENDING') return 'not_pending';
-  const outcome = await dispatchOne(row);
-  return outcome;
+): Promise<DispatchCommunicationByIdResult> {
+  const claimed = await claimCommunicationForSend(id);
+  if (!claimed) {
+    const existing = await findCommunicationById(id);
+    if (!existing) return { outcome: 'not_found' };
+    const snapshot = toDispatchResult(existing);
+    if (existing.status === 'SENT') {
+      return { outcome: 'already_sent', communication: snapshot };
+    }
+    return { outcome: 'not_pending', communication: snapshot };
+  }
+
+  const result = await dispatchClaimedCommunication(claimed);
+  const refreshed = await findCommunicationById(id);
+  if (!refreshed) return { outcome: 'not_found' };
+  return { outcome: result, communication: toDispatchResult(refreshed) };
 }
 
 /** Claim and send a batch of PENDING communications. Never throws on a single bad row. */
@@ -100,7 +132,7 @@ export async function dispatchPendingEmails(limit = 20): Promise<EmailDispatchRe
   let failed = 0;
 
   for (const row of claimed) {
-    const outcome = await dispatchOne(row);
+    const outcome = await dispatchClaimedCommunication(row);
     if (outcome === 'sent') sent += 1;
     else failed += 1;
   }

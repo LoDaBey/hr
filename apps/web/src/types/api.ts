@@ -560,6 +560,32 @@ export interface HrInviteResult {
   link: string;
 }
 
+export interface HrCommunicationDispatchResult {
+  id: string;
+  status: import('@/types/domain').Communication['status'];
+  sent_at: string | null;
+  scheduled_for: string;
+  last_error: string | null;
+}
+
+export interface HrSendInviteNowResult {
+  communication: HrCommunicationDispatchResult;
+  sitting: {
+    id: string;
+    status: string;
+    invite_deadline: string;
+  };
+  stage: Stage;
+}
+
+export interface HrCancelInviteResult {
+  stage: Stage;
+}
+
+export interface HrEmailSendNowResult {
+  communication: HrCommunicationDispatchResult;
+}
+
 export interface HrSettingsResult {
   auto_send_assessment: boolean;
   auto_send_assessment_delay_minutes: number;

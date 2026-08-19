@@ -1,6 +1,7 @@
 import { requireHr } from '@/lib/auth-hr';
 import { jsonError, jsonOk } from '@/lib/http';
 import { cancelScheduledInvite } from '@/lib/pipeline/invites';
+import type { HrCancelInviteResult } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,8 @@ export async function POST(
       return jsonError(409, 'WRONG_STAGE', 'No scheduled assessment invite to cancel');
     }
 
-    return jsonOk({ ok: true });
+    const data: HrCancelInviteResult = { stage: result.stage };
+    return jsonOk(data);
   } catch (error) {
     console.error(error);
     return jsonError(500, 'INTERNAL_ERROR', 'Failed to cancel assessment invite');

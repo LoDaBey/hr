@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { Alert, Badge, Group, Paper, Stack, Text } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
 import { ApiError, api } from '@/lib/api';
-import { datetime } from '@/lib/format';
+import { datetime, time } from '@/lib/format';
 import { SITTING_STATUS, labelOf } from '@/lib/labels';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
-import type { HrInviteResult } from '@/types/api';
+import type { HrInviteResult, HrSendInviteNowResult } from '@/types/api';
 import type { Communication, SittingStatus, Stage } from '@/types/domain';
 
 const INVITE_STAGES: Stage[] = [
@@ -46,6 +46,21 @@ function findPendingInvite(
   return pending;
 }
 
+function findSentInvite(
+  communications: Communication[],
+  sittingId: string | undefined,
+): Communication | null {
+  if (!sittingId) return null;
+  return (
+    communications.find(
+      (c) =>
+        c.template_key === 'ASSESSMENT_INVITE' &&
+        c.status === 'SENT' &&
+        c.dedupe_key.includes(sittingId),
+    ) ?? null
+  );
+}
+
 function minutesUntil(iso: string): number {
   return Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 60_000));
 }
@@ -69,12 +84,15 @@ export function AssessmentInviteBar({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [stale, setStale] = useState(false);
+  const [sentAtOverride, setSentAtOverride] = useState<string | null>(null);
 
   if (!INVITE_STAGES.includes(stage)) {
     return null;
   }
 
   const pending = findPendingInvite(communications, assessment?.id);
+  const sentInvite = findSentInvite(communications, assessment?.id);
+  const sentAt = sentAtOverride ?? sentInvite?.sent_at ?? null;
   const canResend =
     !pending &&
     assessment != null &&
@@ -111,10 +129,13 @@ export function AssessmentInviteBar({
   async function sendNow() {
     setSubmitting(true);
     try {
-      await api(`/api/hr/candidates/${applicationId}/assessment/invite/send-now`, {
-        method: 'POST',
-      });
-      toastSuccess('Assessment invite will send shortly');
+      const result = await api<HrSendInviteNowResult>(
+        `/api/hr/candidates/${applicationId}/assessment/invite/send-now`,
+        { method: 'POST' },
+      );
+      const deliveredAt = result.communication.sent_at ?? new Date().toISOString();
+      setSentAtOverride(deliveredAt);
+      toastSuccess(`Assessment invitation sent ${time(deliveredAt)}`);
       onInvited();
     } catch (error) {
       toastError(error instanceof Error ? error.message : 'Send now failed');
@@ -129,7 +150,8 @@ export function AssessmentInviteBar({
       await api(`/api/hr/candidates/${applicationId}/assessment/invite/cancel`, {
         method: 'POST',
       });
-      toastSuccess('Scheduled assessment invite cancelled');
+      setSentAtOverride(null);
+      toastSuccess('Assessment cancelled');
       onInvited();
     } catch (error) {
       toastError(error instanceof Error ? error.message : 'Cancel failed');
@@ -197,6 +219,11 @@ export function AssessmentInviteBar({
           </Stack>
         ) : (
           <>
+            {sentAt ? (
+              <Text size="sm" fw={600} style={{ color: palette.ink }}>
+                Assessment invitation sent {time(sentAt)}
+              </Text>
+            ) : null}
             {assessment ? (
               <Group gap="md" wrap="wrap">
                 <Badge color="accent" variant="light">
