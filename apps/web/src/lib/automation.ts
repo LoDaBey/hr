@@ -31,6 +31,8 @@ export async function runAutomation<T>(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 20_000);
   try {
+    console.error('[automation]', task, 'url=', url, 'secretLen=', secret.length,
+                  'secretTail=', secret.slice(-4));
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -49,6 +51,8 @@ export async function runAutomation<T>(
       json = null;
     }
     if (isAutomationResult<T>(json)) return json;
+    console.error('[automation]', task, 'status=', res.status,
+                  'body=', text.slice(0, 300));
     const detail = text.trim().slice(0, 200) || `HTTP ${res.status}`;
     return {
       ok: false,
