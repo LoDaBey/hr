@@ -168,6 +168,7 @@ export const EMAIL_TEMPLATE: Record<string, string> = {
   ASSESSMENT_EXPIRED: 'Assessment expired',
   TECHTEST_INVITE: 'Recorded technical interview invitation',
   INTERVIEW_INVITE: 'Interview invitation',
+  INTERVIEWER_INVITE: 'Interviewer invitation',
   INTERVIEW_REMINDER: 'Interview reminder',
   OFFER: 'Job offer',
   HIRED: 'Hired confirmation',

@@ -539,6 +539,8 @@ INSERT INTO HRSYSTEM_email_templates (key, subject, body_html) VALUES
  '<p>Hi {{candidate_name}},</p><p>Next step for <b>{{job_title}}</b> is a recorded technical interview: <a href="{{interview_link}}">Start interview</a></p><p>You need a working camera and microphone. The session is recorded. Start before <b>{{assessment_deadline}}</b>. Once you start you have {{duration_minutes}} minutes.</p><p>{{hr_name}}</p>'),
 ('INTERVIEW_INVITE','Final interview — {{job_title}}',
  '<p>Hi {{candidate_name}},</p><p>Your final interview is scheduled for <b>{{interview_date}} at {{interview_time}} ({{timezone}})</b>.</p><p>Join here: <a href="{{meeting_url}}">{{meeting_url}}</a></p><p>{{hr_name}}</p>'),
+('INTERVIEWER_INVITE','Interview scheduled — {{candidate_name}} for {{job_title}}',
+ '<p>Hi,</p><p>You are scheduled to interview <b>{{candidate_name}}</b> for the <b>{{job_title}}</b> role.</p><p><b>When:</b> {{interview_date}} at {{interview_time}} ({{timezone}})<br/><b>Duration:</b> {{duration_minutes}} minutes</p><p><b>Join:</b> <a href="{{meeting_url}}">{{meeting_url}}</a></p><p>Review the candidate before the call: <a href="{{candidate_profile_url}}">Open candidate profile</a></p><p>{{hr_name}}</p>'),
 ('INTERVIEW_REMINDER','Reminder: interview {{interview_date}} {{interview_time}}',
  '<p>Hi {{candidate_name}},</p><p>Reminder for your interview on {{interview_date}} at {{interview_time}} ({{timezone}}).</p><p><a href="{{meeting_url}}">Join link</a></p>'),
 ('OFFER','Offer — {{job_title}}',

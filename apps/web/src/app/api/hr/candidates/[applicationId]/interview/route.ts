@@ -4,7 +4,7 @@ import { requireHr } from '@/lib/auth-hr';
 import { tx } from '@/lib/db';
 import { datetime } from '@/lib/format';
 import { jsonError, jsonOk } from '@/lib/http';
-import { enqueueCommunication } from '@/lib/repos/communications';
+import { enqueueCommunication, enqueueCommunicationTx } from '@/lib/repos/communications';
 import type { HrInterviewScheduleResult } from '@/types/api';
 import type { Stage } from '@/types/domain';
 
@@ -168,20 +168,40 @@ export async function POST(
         timeStyle: 'short',
       });
       const [datePart, timePart] = whenLocal.split(', ');
+      const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '');
+      const candidateProfileUrl = `${base}/hr/candidates/${applicationId}`;
+      const interviewerEmail = parsed.data.interviewer_email?.trim() || '';
+
+      const emailVars = {
+        candidate_name: application.full_name,
+        job_title: application.title,
+        interview_date: datePart ?? datetime(scheduledAt.toISOString()),
+        interview_time: timePart ?? '',
+        timezone: parsed.data.timezone,
+        meeting_url: parsed.data.meeting_url || '',
+        hr_name: user.name,
+      };
+
+      if (interviewerEmail) {
+        await enqueueCommunicationTx(client, {
+          candidate_id: application.candidate_id,
+          application_id: applicationId,
+          template_key: 'INTERVIEWER_INVITE',
+          to_email: interviewerEmail,
+          variables: {
+            ...emailVars,
+            duration_minutes: String(parsed.data.duration_minutes),
+            candidate_profile_url: candidateProfileUrl,
+          },
+          dedupe_key: `${applicationId}:INTERVIEWER_INVITE:${interview.id}:${scheduledAt.toISOString()}`,
+        });
+      }
 
       return {
         kind: 'ok' as const,
         application,
         interviewId: interview.id,
-        emailVars: {
-          candidate_name: application.full_name,
-          job_title: application.title,
-          interview_date: datePart ?? datetime(scheduledAt.toISOString()),
-          interview_time: timePart ?? '',
-          timezone: parsed.data.timezone,
-          meeting_url: parsed.data.meeting_url || '',
-          hr_name: user.name,
-        },
+        emailVars,
         dedupe_key: `${applicationId}:INTERVIEW_INVITE:${interview.id}:${scheduledAt.toISOString()}`,
         data: {
           interview_id: interview.id,

@@ -21,10 +21,12 @@ import { ApplicationAnswersSection } from './ApplicationAnswersSection';
 import { CandidateEmailsSection } from './CandidateEmailsSection';
 import { CandidateTimelineSection } from './CandidateTimelineSection';
 import { FinalDecisionBar } from './FinalDecisionBar';
-import { InterviewCompleteForm } from './InterviewCompleteForm';
+import {
+  InterviewPanelsSection,
+  isFinalInterviewPanelStage,
+} from './InterviewPanelsSection';
 import { ParsedCvSummary } from './ParsedCvSummary';
 import { ScreeningResultSection } from './ScreeningResultSection';
-import { ScheduleForm } from '@/app/hr/interviews/components/ScheduleForm';
 import { ErrorState } from '@/components/ErrorState';
 import { MotionButton } from '@/components/MotionButton';
 import { StageRail } from '@/components/StageRail';
@@ -101,14 +103,8 @@ function DecisionBarSlot({
 }) {
   const showAssessmentInvite = ASSESSMENT_INVITE_STAGES.includes(application.stage);
   const showTechTestInvite = TECHTEST_INVITE_STAGES.includes(application.stage);
-  const showSchedule =
-    application.stage === 'FINAL_INTERVIEW_PENDING' ||
-    application.stage === 'SECOND_FINAL_INTERVIEW';
-  const showComplete =
-    application.stage === 'FINAL_INTERVIEW_SCHEDULED' &&
-    interviews.some((i) => i.status === 'SCHEDULED');
+  const showInterviewPanels = isFinalInterviewPanelStage(application.stage);
   const showFinalDecision = application.stage === 'FINAL_INTERVIEW_COMPLETED';
-  const openInterview = interviews.find((i) => i.status === 'SCHEDULED');
 
   if (showAssessmentInvite) {
     return (
@@ -136,47 +132,25 @@ function DecisionBarSlot({
       />
     );
   }
-  if (showFinalDecision) {
+  if (showFinalDecision || showInterviewPanels) {
     return (
-      <FinalDecisionBar
-        applicationId={applicationId}
-        candidateName={data.candidate.full_name}
-        onDecided={onMutate}
-      />
-    );
-  }
-  if (showComplete && openInterview) {
-    return (
-      <Paper
-        withBorder
-        p="md"
-        radius={density.defaultRadius}
-        style={{ borderColor: `${palette.ink}14` }}
-      >
-        <Stack gap="sm">
-          <Text fw={600}>Complete interview</Text>
-          <InterviewCompleteForm interviewId={openInterview.id} onCompleted={onMutate} />
-        </Stack>
-      </Paper>
-    );
-  }
-  if (showSchedule) {
-    return (
-      <Paper
-        withBorder
-        p="md"
-        radius={density.defaultRadius}
-        style={{ borderColor: `${palette.ink}14` }}
-      >
-        <Stack gap="sm">
-          <Text fw={600}>Schedule final interview</Text>
-          <ScheduleForm
+      <Stack gap="sm">
+        {showFinalDecision ? (
+          <FinalDecisionBar
             applicationId={applicationId}
-            roundNo={application.stage === 'SECOND_FINAL_INTERVIEW' ? 2 : 1}
-            onScheduled={onMutate}
+            candidateName={data.candidate.full_name}
+            onDecided={onMutate}
           />
-        </Stack>
-      </Paper>
+        ) : null}
+        {showInterviewPanels ? (
+          <InterviewPanelsSection
+            applicationId={applicationId}
+            stage={application.stage}
+            interviews={interviews}
+            onMutate={onMutate}
+          />
+        ) : null}
+      </Stack>
     );
   }
   return (
