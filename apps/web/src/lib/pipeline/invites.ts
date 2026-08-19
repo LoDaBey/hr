@@ -1,12 +1,16 @@
 import 'server-only';
 import { randomBytes } from 'crypto';
 import type { PoolClient, QueryResultRow } from 'pg';
-import { tx } from '@/lib/db';
-import { dispatchCommunicationById } from '@/lib/email-dispatch';
+import { tx, one } from '@/lib/db';
+import { dispatchClaimedCommunication } from '@/lib/email-dispatch';
 import { datetime } from '@/lib/format';
 import { hashToken } from '@/lib/tokens';
+import {
+  claimCommunicationForSend,
+  findCommunicationById,
+} from '@/lib/repos/communications';
 import type { HrInviteResult } from '@/types/api';
-import type { ActorType, Stage } from '@/types/domain';
+import type { ActorType, Communication, Stage } from '@/types/domain';
 
 export type InviteKind = 'ASSESSMENT' | 'TECH_TEST';
 
@@ -347,47 +351,57 @@ export async function issueInvite(
 }
 
 export type InviteControlResult =
-  | { ok: true }
+  | { ok: true; stage: Stage }
   | { ok: false; reason: 'not_found' | 'nothing_pending' | 'wrong_stage' };
+
+export type SendInviteNowResult =
+  | {
+      ok: true;
+      communication: Communication;
+      sitting: { id: string; status: string; invite_deadline: string };
+      stage: Stage;
+    }
+  | { ok: false; reason: 'not_found' | 'nothing_pending' };
 
 /** Bump a still-PENDING invite email to send immediately. */
 export async function sendInviteNow(
   applicationId: string,
   kind: InviteKind,
   actor: InviteActor,
-): Promise<InviteControlResult> {
+): Promise<SendInviteNowResult> {
   const config = KIND_CONFIG[kind];
 
-  return tx(async (client) => {
+  const prep = await tx(async (client) => {
     const application = await oneTx<{ id: string; stage: Stage; candidate_id: string; job_id: string }>(
       client,
       `SELECT id, stage, candidate_id, job_id FROM HRSYSTEM_applications WHERE id = $1 FOR UPDATE`,
       [applicationId],
     );
-    if (!application) return { ok: false, reason: 'not_found' };
+    if (!application) return { ok: false as const, reason: 'not_found' as const };
 
-    const sitting = await oneTx<{ id: string }>(
+    const sitting = await oneTx<{ id: string; status: string; invite_deadline: string }>(
       client,
-      `SELECT id FROM HRSYSTEM_candidate_assessments
+      `SELECT id, status, invite_deadline FROM HRSYSTEM_candidate_assessments
        WHERE application_id = $1 AND kind = $2 AND status IN ('INVITED', 'STARTED')
        ORDER BY created_at DESC
        LIMIT 1`,
       [applicationId, kind],
     );
-    if (!sitting) return { ok: false, reason: 'nothing_pending' };
+    if (!sitting) return { ok: false as const, reason: 'nothing_pending' as const };
 
-    const updated = await oneTx<{ id: string }>(
+    const commRow = await oneTx<{ id: string }>(
       client,
-      `UPDATE HRSYSTEM_communications
-       SET scheduled_for = now()
+      `SELECT id FROM HRSYSTEM_communications
        WHERE application_id = $1
          AND template_key = $2
          AND dedupe_key = $3
-         AND status = 'PENDING'
-       RETURNING id`,
+         AND status = 'PENDING'`,
       [applicationId, config.templateKey, `${applicationId}:${config.templateKey}:${sitting.id}`],
     );
-    if (!updated) return { ok: false, reason: 'nothing_pending' };
+    if (!commRow) return { ok: false as const, reason: 'nothing_pending' as const };
+
+    const claimed = await claimCommunicationForSend(commRow.id, client);
+    if (!claimed) return { ok: false as const, reason: 'nothing_pending' as const };
 
     await client.query(
       `INSERT INTO HRSYSTEM_recruitment_events (
@@ -407,14 +421,34 @@ export async function sendInviteNow(
         actor.type,
         actor.id ?? null,
         actor.label ?? null,
-        JSON.stringify({ candidate_assessment_id: sitting.id, communication_id: updated.id }),
+        JSON.stringify({ candidate_assessment_id: sitting.id, communication_id: claimed.id }),
       ],
     );
 
-    await dispatchCommunicationById(updated.id);
-
-    return { ok: true };
+    return { ok: true as const, claimed, application, sitting };
   });
+
+  if (!prep.ok) return prep;
+
+  const dispatchOutcome = await dispatchClaimedCommunication(prep.claimed);
+  const refreshed = await findCommunicationById(prep.claimed.id);
+  if (!refreshed) return { ok: false, reason: 'nothing_pending' };
+
+  if (dispatchOutcome === 'failed') {
+    throw new Error(refreshed.last_error ?? 'Email could not be sent');
+  }
+
+  const applicationRow = await one<{ stage: Stage }>(
+    `SELECT stage FROM HRSYSTEM_applications WHERE id = $1`,
+    [applicationId],
+  );
+
+  return {
+    ok: true,
+    communication: refreshed,
+    sitting: prep.sitting,
+    stage: applicationRow?.stage ?? prep.application.stage,
+  };
 }
 
 /**
@@ -515,7 +549,7 @@ export async function cancelScheduledInvite(
       ],
     );
 
-    return { ok: true };
+    return { ok: true, stage: config.revertStage };
   });
 }
 

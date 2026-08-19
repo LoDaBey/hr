@@ -1,8 +1,26 @@
 import { requireHr } from '@/lib/auth-hr';
 import { jsonError, jsonOk } from '@/lib/http';
 import { sendInviteNow } from '@/lib/pipeline/invites';
+import type { HrCommunicationDispatchResult, HrSendInviteNowResult } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+function mapCommunication(row: {
+  id: string;
+  status: HrCommunicationDispatchResult['status'];
+  sent_at: string | null;
+  scheduled_for: string;
+  last_error: string | null;
+}): HrCommunicationDispatchResult {
+  return {
+    id: row.id,
+    status: row.status,
+    sent_at: row.sent_at,
+    scheduled_for: row.scheduled_for,
+    last_error: row.last_error,
+  };
+}
 
 export async function POST(
   _req: Request,
@@ -29,9 +47,16 @@ export async function POST(
       return jsonError(409, 'WRONG_STAGE', 'No pending assessment invite to send now');
     }
 
-    return jsonOk({ ok: true });
+    const data: HrSendInviteNowResult = {
+      communication: mapCommunication(result.communication),
+      sitting: result.sitting,
+      stage: result.stage,
+    };
+
+    return jsonOk(data);
   } catch (error) {
     console.error(error);
-    return jsonError(500, 'INTERNAL_ERROR', 'Failed to send assessment invite now');
+    const message = error instanceof Error ? error.message : 'Failed to send assessment invite now';
+    return jsonError(500, 'INTERNAL_ERROR', message);
   }
 }

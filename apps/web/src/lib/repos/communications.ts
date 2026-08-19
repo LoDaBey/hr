@@ -1,4 +1,5 @@
 import 'server-only';
+import type { PoolClient } from 'pg';
 import { one, query, tx } from '@/lib/db';
 import type { Communication, NewCommunication } from '@/types/domain';
 
@@ -69,6 +70,35 @@ export async function claimPendingCommunications(limit = 20): Promise<Communicat
       [limit],
     );
     return res.rows;
+  });
+}
+
+export async function claimCommunicationForSend(
+  id: string,
+  client?: PoolClient,
+): Promise<Communication | null> {
+  const sql = `
+    UPDATE HRSYSTEM_communications
+    SET attempts = attempts + 1,
+        scheduled_for = now()
+    WHERE id IN (
+      SELECT c.id
+      FROM HRSYSTEM_communications c
+      WHERE c.id = $1
+        AND c.status = 'PENDING'
+        AND c.attempts < 3
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *`;
+
+  if (client) {
+    const res = await client.query<Communication>(sql, [id]);
+    return res.rows[0] ?? null;
+  }
+
+  return tx(async (c) => {
+    const res = await c.query<Communication>(sql, [id]);
+    return res.rows[0] ?? null;
   });
 }
 
