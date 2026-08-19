@@ -23,6 +23,9 @@ export function ProfessionalFields({
 }: {
   form: UseFormReturnType<ApplyFormValues>;
 }) {
+  const employmentStatus = form.values.professional.employment_status;
+  const isUnemployed = employmentStatus === 'UNEMPLOYED';
+
   return (
     <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
       <Select
@@ -32,17 +35,26 @@ export function ProfessionalFields({
         data={EMPLOYMENT_OPTIONS}
         clearable
         {...form.getInputProps('professional.employment_status')}
+        onChange={(value) => {
+          form.setFieldValue('professional.employment_status', value ?? '');
+          if (value === 'UNEMPLOYED') {
+            form.setFieldValue('professional.current_company', '');
+            form.setFieldValue('professional.current_position', '');
+          }
+        }}
       />
       <TextInput
         className="rounded outline-none"
         label="Current company"
         aria-label="Current company"
+        disabled={isUnemployed}
         {...form.getInputProps('professional.current_company')}
       />
       <TextInput
         className="rounded outline-none"
         label="Current position"
         aria-label="Current position"
+        disabled={isUnemployed}
         {...form.getInputProps('professional.current_position')}
       />
       <NumberInput

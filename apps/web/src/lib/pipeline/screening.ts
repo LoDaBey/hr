@@ -395,7 +395,6 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       score >= shortlistMinScore &&
       confidence !== null &&
       confidence >= minConfidence &&
-      missing.length === 0 &&
       !rejectHardFail
     ) {
       outcome = 'shortlist';
