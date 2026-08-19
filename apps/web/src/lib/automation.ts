@@ -1,6 +1,13 @@
 import 'server-only';
 import type { AutomationResult, AutomationTask } from '@/types/api';
 
+const TASK_TIMEOUT_MS: Record<AutomationTask, number> = {
+  'cv.parse': 45_000,
+  'screening.run': 30_000,
+  'assessment.grade': 30_000,
+  'email.send': 15_000,
+};
+
 function isAutomationResult<T>(value: unknown): value is AutomationResult<T> {
   if (typeof value !== 'object' || value === null || !('ok' in value)) return false;
   const envelope = value as { ok: unknown; data?: unknown; error?: unknown };
@@ -28,11 +35,10 @@ export async function runAutomation<T>(
     return { ok: false, error: { code: 'INTERNAL_ERROR', message: `automation ${task} failed` } };
   }
 
+  const timeoutMs = opts.timeoutMs ?? TASK_TIMEOUT_MS[task];
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 20_000);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    console.error('[automation]', task, 'url=', url, 'secretLen=', secret.length,
-                  'secretTail=', secret.slice(-4));
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -51,7 +57,7 @@ export async function runAutomation<T>(
       json = null;
     }
     if (isAutomationResult<T>(json)) return json;
-    console.error('[automation]', task, 'status=', res.status,
+    console.error('[automation] unexpected response', task, 'status=', res.status,
                   'body=', text.slice(0, 300));
     const detail = text.trim().slice(0, 200) || `HTTP ${res.status}`;
     return {

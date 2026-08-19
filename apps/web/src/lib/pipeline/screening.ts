@@ -84,12 +84,47 @@ export function evaluateHardRequirements(
 }
 
 async function loadAnswers(applicationId: string): Promise<Record<string, unknown>> {
+  const meta = await one<{
+    years_experience: number | null;
+    expected_salary: number | null;
+    notice_period_days: number | null;
+    available_from: string | null;
+    current_position: string | null;
+    employment_status: string | null;
+    age: number | null;
+    military_status: string | null;
+    marital_status: string | null;
+  }>(
+    `SELECT
+       a.years_experience, a.expected_salary, a.notice_period_days,
+       a.available_from, a.current_position, a.employment_status,
+       c.age, c.military_status, c.marital_status
+     FROM HRSYSTEM_applications a
+     JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
+     WHERE a.id = $1`,
+    [applicationId],
+  );
+
+  const answers: Record<string, unknown> = {};
+
+  if (meta) {
+    if (meta.age != null) answers.age = meta.age;
+    if (meta.military_status != null) answers.military_status = meta.military_status;
+    if (meta.marital_status != null) answers.marital_status = meta.marital_status;
+    if (meta.years_experience != null) answers.years_experience = meta.years_experience;
+    if (meta.expected_salary != null) answers.expected_salary = meta.expected_salary;
+    if (meta.notice_period_days != null) answers.notice_period_days = meta.notice_period_days;
+    if (meta.available_from != null) answers.available_from = meta.available_from;
+    if (meta.current_position != null) answers.current_position = meta.current_position;
+    if (meta.employment_status != null) answers.employment_status = meta.employment_status;
+  }
+
   const rows = await query<{ question_key: string; answer: unknown }>(
     `SELECT question_key, answer FROM HRSYSTEM_application_answers WHERE application_id = $1`,
     [applicationId],
   );
-  const answers: Record<string, unknown> = {};
   for (const row of rows) answers[row.question_key] = row.answer;
+
   return answers;
 }
 

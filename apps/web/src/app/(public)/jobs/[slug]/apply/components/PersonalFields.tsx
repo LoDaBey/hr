@@ -3,7 +3,7 @@
 import { NumberInput, Select, SimpleGrid, TextInput } from '@mantine/core';
 import type { UseFormReturnType } from '@mantine/form';
 import type { PublicJobDetail } from '@/types/api';
-import { MILITARY_STATUS_OPTIONS } from '@/types/job-editor';
+import { MARITAL_STATUS_OPTIONS, MILITARY_STATUS_OPTIONS } from '@/types/job-editor';
 import type { ApplyFormValues } from './form-values';
 
 export type PersonalValues = {
@@ -18,6 +18,7 @@ export type PersonalValues = {
 };
 
 const MILITARY_OPTIONS = MILITARY_STATUS_OPTIONS.map((value) => ({ value, label: value }));
+const MARITAL_OPTIONS = MARITAL_STATUS_OPTIONS.map((value) => ({ value, label: value }));
 
 export function PersonalFields({
   form,
@@ -84,10 +85,12 @@ export function PersonalFields({
         />
       ) : null}
       {job.ask_marital_status ? (
-        <TextInput
+        <Select
           className="rounded outline-none"
           label="Marital status"
           aria-label="Marital status"
+          data={MARITAL_OPTIONS}
+          required
           {...form.getInputProps('candidate.marital_status')}
         />
       ) : null}
