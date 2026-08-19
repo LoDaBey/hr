@@ -1,27 +1,30 @@
 'use client';
 
-import { Group, Text } from '@mantine/core';
+import dayjs from 'dayjs';
 import { MotionButton } from '@/components/MotionButton';
+import { CandidateEventLog, type EventLogItem } from './CandidateEventLog';
 import { api } from '@/lib/api';
-import { datetime } from '@/lib/format';
+import { time } from '@/lib/format';
 import { emailTemplateLabel } from '@/lib/labels';
 import { toastError, toastSuccess } from '@/lib/toast';
 import type { Communication } from '@/types/domain';
 
-function emailStatusLine(comm: Communication): string {
+function emailStatusDetail(comm: Communication): string {
   if (comm.status === 'SENT') {
-    return comm.sent_at
-      ? `Sent · ${datetime(comm.sent_at)}`
-      : 'Sent';
+    return comm.sent_at ? `Delivered ${time(comm.sent_at)}` : 'Delivered';
   }
   if (comm.status === 'PENDING') {
-    return 'Queued — sending within 5 minutes';
+    const scheduled = dayjs(comm.scheduled_for);
+    if (scheduled.isAfter(dayjs())) {
+      return `Scheduled for ${time(comm.scheduled_for)}`;
+    }
+    return 'Sending shortly';
   }
   if (comm.status === 'FAILED') {
-    return comm.last_error ? `Failed · ${comm.last_error}` : 'Failed';
+    return comm.last_error ?? 'Failed';
   }
   if (comm.status === 'CANCELLED') {
-    return 'Cancelled';
+    return 'Cancelled — superseded by a newer invitation';
   }
   return comm.status;
 }
@@ -34,6 +37,10 @@ export function CandidateEmailsSection({
   onChanged: () => void | Promise<void>;
 }) {
   async function retryEmail(communicationId: string) {
+    if (!communicationId) {
+      toastError('Email id missing — refresh the page');
+      return;
+    }
     try {
       await api(`/api/hr/emails/${communicationId}/retry`, { method: 'POST' });
       toastSuccess('Email queued for retry');
@@ -44,9 +51,13 @@ export function CandidateEmailsSection({
   }
 
   async function sendNow(communicationId: string) {
+    if (!communicationId) {
+      toastError('Email id missing — refresh the page');
+      return;
+    }
     try {
       await api(`/api/hr/emails/${communicationId}/send-now`, { method: 'POST' });
-      toastSuccess('Email queued to send now');
+      toastSuccess('Email sent');
       await onChanged();
     } catch (err) {
       toastError(err instanceof Error ? err.message : 'Send now failed');
@@ -54,50 +65,45 @@ export function CandidateEmailsSection({
   }
 
   if (communications.length === 0) {
-    return <Text c="dimmed">No emails queued for this candidate yet.</Text>;
+    return null;
   }
 
-  return (
-    <>
-      {communications.map((c) => (
-        <Group key={c.id} justify="space-between" align="flex-start" wrap="wrap">
-          <div>
-            <Text fw={500}>{emailTemplateLabel(c.template_key)}</Text>
-            <Text size="sm" c="dimmed">
-              {emailStatusLine(c)}
-            </Text>
-            <Text size="sm" c="dimmed">
-              {c.to_email} · queued {datetime(c.created_at)}
-            </Text>
-          </div>
-          <Group gap="xs">
-            {c.status === 'PENDING' ? (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label={`Send ${emailTemplateLabel(c.template_key)} now`}
-                size="xs"
-                variant="light"
-                color="accent"
-                onClick={() => void sendNow(c.id)}
-              >
-                Send now
-              </MotionButton>
-            ) : null}
-            {c.status === 'FAILED' ? (
-              <MotionButton
-                className="cursor-pointer rounded-lg"
-                aria-label={`Retry ${emailTemplateLabel(c.template_key)}`}
-                size="xs"
-                color="danger"
-                variant="light"
-                onClick={() => void retryEmail(c.id)}
-              >
-                Retry
-              </MotionButton>
-            ) : null}
-          </Group>
-        </Group>
-      ))}
-    </>
-  );
+  const items: EventLogItem[] = communications
+    .filter((c) => Boolean(c.id))
+    .map((c) => ({
+      id: c.id,
+      title: emailTemplateLabel(c.template_key),
+      detail: `${emailStatusDetail(c)} · ${c.to_email}`,
+      timestamp: c.created_at,
+      actions: (
+        <>
+          {c.status === 'PENDING' ? (
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label={`Send ${emailTemplateLabel(c.template_key)} now`}
+              size="xs"
+              variant="light"
+              color="accent"
+              onClick={() => void sendNow(c.id)}
+            >
+              Send now
+            </MotionButton>
+          ) : null}
+          {c.status === 'FAILED' ? (
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label={`Retry ${emailTemplateLabel(c.template_key)}`}
+              size="xs"
+              color="danger"
+              variant="light"
+              onClick={() => void retryEmail(c.id)}
+            >
+              Retry
+            </MotionButton>
+          ) : null}
+        </>
+      ),
+    }));
+
+  return <CandidateEventLog items={items} />;
 }

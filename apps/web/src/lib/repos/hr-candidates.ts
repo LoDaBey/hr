@@ -91,6 +91,7 @@ type JobQuestionRow = {
   order_index: number;
 };
 
+
 function buildApplicationAnswers(
   candidate: Candidate,
   application: Application,
@@ -275,7 +276,12 @@ export async function getHrCandidateDetail(
       [applicationId],
     ),
     query<Communication>(
-      `SELECT * FROM HRSYSTEM_communications WHERE application_id = $1 ORDER BY created_at DESC`,
+      `SELECT id, candidate_id, application_id, template_key, to_email, subject,
+              variables, status, attempts, last_error, gmail_message_id,
+              dedupe_key, scheduled_for, sent_at, created_at
+       FROM HRSYSTEM_communications
+       WHERE application_id = $1
+       ORDER BY created_at DESC, id DESC`,
       [applicationId],
     ),
     query<RecruitmentEvent>(
