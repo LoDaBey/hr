@@ -32,6 +32,8 @@ export type ErrorCode =
   | 'TOKEN_USED'
   | 'ALREADY_SUBMITTED'
   | 'WRONG_STAGE'
+  | 'ALREADY_GRADED'
+  | 'GRADING_FAILED'
   | 'RATE_LIMITED'
   | 'UPLOAD_INCOMPLETE'
   | 'INTERNAL_ERROR';
@@ -580,6 +582,10 @@ export interface HrSendInviteNowResult {
     invite_deadline: string;
   };
   stage: Stage;
+}
+
+export interface HrGradeNowResult {
+  sitting_id: string;
 }
 
 export interface HrCancelInviteResult {

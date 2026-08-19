@@ -354,6 +354,9 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         {assessment?.review ? (
           <Section title="Technical assessment review">
             <AssessmentReview
+              applicationId={applicationId}
+              gradeKind="ASSESSMENT"
+              onGraded={refresh}
               review={{
                 id: assessment.id,
                 status: assessment.status,
@@ -373,6 +376,8 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         {techtest?.review ? (
           <Section title="Recorded technical interview">
             <TechTestReview
+              applicationId={applicationId}
+              onGraded={refresh}
               review={{
                 id: techtest.id,
                 status: techtest.status,

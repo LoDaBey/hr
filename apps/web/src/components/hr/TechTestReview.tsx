@@ -51,7 +51,15 @@ function offsetSeconds(
   return Math.max(0, Math.floor((at - start) / 1000));
 }
 
-export function TechTestReview({ review }: { review: TechTestReviewData }) {
+export function TechTestReview({
+  review,
+  applicationId,
+  onGraded,
+}: {
+  review: TechTestReviewData;
+  applicationId?: string;
+  onGraded?: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const recordingReady =
     review.recording_status === 'READY' && Boolean(review.recording?.signed_url);
@@ -76,7 +84,12 @@ export function TechTestReview({ review }: { review: TechTestReviewData }) {
 
   return (
     <Stack gap="lg">
-      <AssessmentReview review={review} />
+      <AssessmentReview
+        review={review}
+        applicationId={applicationId}
+        gradeKind="TECH_TEST"
+        onGraded={onGraded}
+      />
 
       <Paper
         withBorder

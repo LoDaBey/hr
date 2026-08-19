@@ -4,7 +4,11 @@ import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { Extension } from '@codemirror/state';
 import { Alert, Badge, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core';
+import { MotionButton } from '@/components/MotionButton';
+import { api } from '@/lib/api';
+import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
+import type { HrGradeNowResult } from '@/types/api';
 import type { QuestionType, SittingStatus } from '@/types/domain';
 
 const CodeMirror = dynamic(() => import('@uiw/react-codemirror'), { ssr: false });
@@ -98,7 +102,53 @@ function ReadOnlyCode({ value, language }: { value: string; language: string | n
   );
 }
 
-function ScoreHeader({ review }: { review: AssessmentReviewData }) {
+function minutesSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return null;
+  return Math.floor((Date.now() - at) / 60_000);
+}
+
+function ScoreHeader({
+  review,
+  applicationId,
+  gradeKind,
+  onGraded,
+}: {
+  review: AssessmentReviewData;
+  applicationId?: string;
+  gradeKind?: 'ASSESSMENT' | 'TECH_TEST';
+  onGraded?: () => void;
+}) {
+  const [grading, setGrading] = useState(false);
+  const awaitingGrading =
+    !review.grading_error && !review.has_overall_evaluation && review.status === 'SUBMITTED';
+  const minutesWaiting = minutesSince(review.submitted_at);
+  const showGradeNow =
+    awaitingGrading &&
+    applicationId &&
+    gradeKind &&
+    minutesWaiting != null &&
+    minutesWaiting >= 5;
+
+  async function gradeNow() {
+    if (!applicationId || !gradeKind) return;
+    setGrading(true);
+    try {
+      const path =
+        gradeKind === 'TECH_TEST'
+          ? `/api/hr/candidates/${applicationId}/techtest/grade-now`
+          : `/api/hr/candidates/${applicationId}/assessment/grade-now`;
+      await api<HrGradeNowResult>(path, { method: 'POST' });
+      toastSuccess('Grading complete');
+      onGraded?.();
+    } catch (error) {
+      toastError(error instanceof Error ? error.message : 'Grade now failed');
+    } finally {
+      setGrading(false);
+    }
+  }
+
   if (review.grading_error) {
     return (
       <Alert color="danger" title="Grading failed — review manually">
@@ -114,15 +164,34 @@ function ScoreHeader({ review }: { review: AssessmentReviewData }) {
 
   if (!review.has_overall_evaluation && review.status === 'SUBMITTED') {
     return (
-      <Group gap="sm">
-        <Loader size="sm" color="accent" aria-label="Awaiting grading" />
-        <Text fw={600} style={{ color: palette.ink }}>
-          Awaiting grading
-        </Text>
-        <Text size="sm" c="dimmed">
-          AI grading is in progress — this page refreshes automatically.
-        </Text>
-      </Group>
+      <Stack gap="sm">
+        <Group gap="sm">
+          <Loader size="sm" color="accent" aria-label="Awaiting grading" />
+          <Text fw={600} style={{ color: palette.ink }}>
+            Awaiting grading
+          </Text>
+          <Text size="sm" c="dimmed">
+            AI grading is in progress — this page refreshes automatically.
+          </Text>
+        </Group>
+        {showGradeNow ? (
+          <Group gap="sm">
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Grade submission now"
+              color="warning"
+              loading={grading}
+              disabled={grading}
+              onClick={() => void gradeNow()}
+            >
+              Grade now
+            </MotionButton>
+            <Text size="sm" c="dimmed">
+              Submitted {minutesWaiting} minutes ago — use if grading is stuck.
+            </Text>
+          </Group>
+        ) : null}
+      </Stack>
     );
   }
 
@@ -165,10 +234,25 @@ function ScoreHeader({ review }: { review: AssessmentReviewData }) {
   );
 }
 
-export function AssessmentReview({ review }: { review: AssessmentReviewData }) {
+export function AssessmentReview({
+  review,
+  applicationId,
+  gradeKind,
+  onGraded,
+}: {
+  review: AssessmentReviewData;
+  applicationId?: string;
+  gradeKind?: 'ASSESSMENT' | 'TECH_TEST';
+  onGraded?: () => void;
+}) {
   return (
     <Stack gap="md">
-      <ScoreHeader review={review} />
+      <ScoreHeader
+        review={review}
+        applicationId={applicationId}
+        gradeKind={gradeKind}
+        onGraded={onGraded}
+      />
 
       {review.questions.map((q, index) => {
         const ev = q.evaluation;
