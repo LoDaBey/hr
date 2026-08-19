@@ -113,7 +113,9 @@ export function BasicsSection({
             className="rounded outline-none"
             label="Description"
             aria-label="Job description"
-            minRows={4}
+            autosize
+            minRows={8}
+            maxRows={20}
             {...form.getInputProps('description')}
             onChange={(e) => {
               form.setFieldValue('description', e.currentTarget.value);
@@ -138,17 +140,6 @@ export function BasicsSection({
             {...form.getInputProps('required_skills')}
             onChange={(value) => {
               form.setFieldValue('required_skills', value);
-              onDirty();
-            }}
-          />
-          <TagsInput
-            className="rounded outline-none"
-            label="Preferred skills"
-            aria-label="Preferred skills"
-            placeholder="Type a skill and press Enter"
-            {...form.getInputProps('preferred_skills')}
-            onChange={(value) => {
-              form.setFieldValue('preferred_skills', value);
               onDirty();
             }}
           />
@@ -342,21 +333,7 @@ export function BasicsSection({
               form.setFieldValue('ask_marital_status', checked);
               onDirty();
             }}
-          >
-            <TextInput
-              className="rounded outline-none"
-              label="Marital status field"
-              aria-label="Marital status field preview"
-              placeholder="Shown on the public application form"
-              disabled={!askMarital}
-              readOnly
-              value={
-                askMarital
-                  ? 'Candidate will choose their marital status'
-                  : 'Enable to collect marital status'
-              }
-            />
-          </CheckboxReveal>
+          />
         </>
       ) : null}
     </Stack>

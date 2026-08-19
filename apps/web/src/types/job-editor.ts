@@ -124,6 +124,7 @@ export const HARD_OP_OPTIONS: Array<{ value: HardRequirementOp; label: string }>
   { value: '>=', label: 'At least' },
   { value: '<=', label: 'At most' },
   { value: '==', label: 'Equals' },
+  { value: 'in', label: 'One of' },
   { value: 'truthy', label: 'Is true' },
 ];
 

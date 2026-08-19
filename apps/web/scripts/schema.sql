@@ -78,7 +78,10 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_jobs (
   -- screening config
   hard_requirements      jsonb NOT NULL DEFAULT '[]'::jsonb,
       -- [{"key":"nodejs_years","label":"Node.js experience","op":">=","value":3,
-      --   "on_fail":"RECOMMEND_REJECT"}]
+      --   "on_fail":"RECOMMEND_REJECT"},
+      --  {"key":"military_status","label":"Military status","op":"in",
+      --   "value":["Completed","Exempted","Not applicable"],"on_fail":"RECOMMEND_REJECT"}]
+      -- Migration 006: op "==" with array value → "in" (see scripts/migrations/006_*.sql)
   soft_requirements      jsonb NOT NULL DEFAULT '[]'::jsonb,
       -- [{"key":"aws","label":"AWS","weight":10}]
   screening_weights      jsonb NOT NULL DEFAULT

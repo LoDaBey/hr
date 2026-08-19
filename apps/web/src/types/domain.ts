@@ -75,7 +75,7 @@ export type CommStatus = 'PENDING' | 'SENT' | 'FAILED' | 'CANCELLED';
 export type ActorType = 'SYSTEM' | 'HR' | 'CANDIDATE' | 'AI' | 'CRON';
 export type TokenPurpose = 'ASSESSMENT' | 'TECH_TEST';
 
-export type HardRequirementOp = '>=' | '<=' | '==' | 'truthy';
+export type HardRequirementOp = '>=' | '<=' | '==' | 'in' | 'truthy';
 export type HardFailAction = 'RECOMMEND_REJECT' | 'MANUAL_REVIEW';
 
 export interface HardRequirement {
@@ -92,6 +92,8 @@ export interface HardRequirementFailure {
   required: unknown;
   got: unknown;
   on_fail: HardFailAction;
+  /** Candidate data was missing — must not trigger auto-reject. */
+  unevaluable?: boolean;
 }
 
 export interface Document {

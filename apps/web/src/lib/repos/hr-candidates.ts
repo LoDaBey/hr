@@ -14,6 +14,7 @@ import type {
   Communication,
   Interview,
   Job,
+  HardRequirementFailure,
   Recommendation,
   RecruitmentEvent,
   RecordingStatus,
@@ -46,6 +47,10 @@ export async function listHrCandidates(
     `SELECT a.id AS application_id, c.id AS candidate_id, c.full_name, c.email,
             j.title AS job_title, a.stage, a.status, a.screening_score, a.assessment_score,
             a.techtest_score, a.years_experience, a.created_at, sr.recommendation,
+            NOT EXISTS (
+              SELECT 1 FROM HRSYSTEM_screening_results
+              WHERE application_id = a.id
+            ) AS screening_pending,
             count(*) OVER() AS total
      FROM HRSYSTEM_applications a
      JOIN HRSYSTEM_candidates c ON c.id = a.candidate_id
@@ -158,7 +163,29 @@ type ScreeningRow = {
   missing_requirements: unknown;
   reasoning_summary: string | null;
   hr_decision: string | null;
+  raw_response: unknown;
 };
+
+function parseHardRequirementFailures(raw: unknown): HardRequirementFailure[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const failures = (raw as Record<string, unknown>).hard_requirement_failures;
+  if (!Array.isArray(failures)) return [];
+  const out: HardRequirementFailure[] = [];
+  for (const item of failures) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    if (typeof row.key !== 'string' || typeof row.label !== 'string') continue;
+    out.push({
+      key: row.key,
+      label: row.label,
+      required: row.required,
+      got: row.got ?? null,
+      on_fail: row.on_fail === 'RECOMMEND_REJECT' ? 'RECOMMEND_REJECT' : 'MANUAL_REVIEW',
+      unevaluable: row.unevaluable === true,
+    });
+  }
+  return out;
+}
 
 type AssessmentSittingRow = {
   id: string;
@@ -241,7 +268,7 @@ export async function getHrCandidateDetail(
     ),
     one<ScreeningRow>(
       `SELECT score, recommendation, confidence, strengths, weaknesses,
-              missing_requirements, reasoning_summary, hr_decision
+              missing_requirements, reasoning_summary, hr_decision, raw_response
        FROM HRSYSTEM_screening_results
        WHERE application_id = $1
        ORDER BY created_at DESC
@@ -421,6 +448,7 @@ export async function getHrCandidateDetail(
     job,
     application_answers: buildApplicationAnswers(candidate, application, job, answers, jobQuestions),
     cv,
+    screening_pending: !screening,
     screening: screening
       ? {
           score: screening.score,
@@ -431,6 +459,7 @@ export async function getHrCandidateDetail(
           missing_requirements: screening.missing_requirements,
           reasoning_summary: screening.reasoning_summary,
           hr_decision: screening.hr_decision,
+          hard_requirement_failures: parseHardRequirementFailures(screening.raw_response),
         }
       : null,
     assessment,

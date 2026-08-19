@@ -20,6 +20,10 @@ import type {
   Recommendation,
   Stage,
 } from '@/types/domain';
+import {
+  formatHardRequirementExpected,
+  formatHardRequirementGot,
+} from '@/lib/hard-requirements';
 
 const RECOMMENDATIONS: Recommendation[] = [
   'STRONG_SHORTLIST',
@@ -52,6 +56,66 @@ function asStringList(value: unknown): string[] {
     .filter(Boolean);
 }
 
+function normalizeCompareValue(value: unknown): string {
+  if (value == null) return '';
+  return String(value).trim().toLowerCase();
+}
+
+function isMissingCandidateValue(value: unknown): boolean {
+  if (value == null) return true;
+  if (typeof value === 'string' && value.trim() === '') return true;
+  return false;
+}
+
+function allowedValues(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map(normalizeCompareValue).filter(Boolean);
+  }
+  const scalar = normalizeCompareValue(value);
+  return scalar ? [scalar] : [];
+}
+
+function evaluateHardRequirement(
+  r: HardRequirement,
+  answers: Record<string, unknown>,
+  cv: Record<string, unknown> | null | undefined,
+): { ok: boolean; got: unknown; unevaluable: boolean } {
+  const v = answers[r.key] ?? cv?.[r.key];
+
+  if (isMissingCandidateValue(v)) {
+    return { ok: false, got: v ?? null, unevaluable: true };
+  }
+
+  const n = Number(v);
+  const t = Number(r.value);
+
+  if (r.op === 'in') {
+    const allowed = allowedValues(r.value);
+    const ok = allowed.length > 0 && allowed.includes(normalizeCompareValue(v));
+    return { ok, got: v, unevaluable: false };
+  }
+
+  if (r.op === '==') {
+    const ok = normalizeCompareValue(v) === normalizeCompareValue(r.value);
+    return { ok, got: v, unevaluable: false };
+  }
+
+  if (r.op === '>=') {
+    return { ok: !Number.isNaN(n) && n >= t, got: v, unevaluable: false };
+  }
+
+  if (r.op === '<=') {
+    return { ok: !Number.isNaN(n) && n <= t, got: v, unevaluable: false };
+  }
+
+  if (r.op === 'truthy') {
+    const ok = v === true || v === 'true' || v === 'yes';
+    return { ok, got: v, unevaluable: false };
+  }
+
+  return { ok: true, got: v, unevaluable: false };
+}
+
 export function evaluateHardRequirements(
   job: { hard_requirements: unknown },
   answers: Record<string, unknown>,
@@ -64,30 +128,24 @@ export function evaluateHardRequirements(
 
   for (const r of requirements) {
     if (!r || typeof r !== 'object' || typeof r.key !== 'string') continue;
-    const v = answers[r.key] ?? cv?.[r.key];
-    const n = Number(v);
-    const t = Number(r.value);
-    const ok =
-      r.op === '>='
-        ? !Number.isNaN(n) && n >= t
-        : r.op === '<='
-          ? !Number.isNaN(n) && n <= t
-          : r.op === '=='
-            ? String(v) === String(r.value)
-            : r.op === 'truthy'
-              ? v === true || v === 'true' || v === 'yes'
-              : true;
-    if (!ok) {
-      fails.push({
-        key: r.key,
-        label: r.label,
-        required: r.value,
-        got: v ?? null,
-        on_fail: r.on_fail === 'RECOMMEND_REJECT' ? 'RECOMMEND_REJECT' : 'MANUAL_REVIEW',
-      });
-    }
+    const { ok, got, unevaluable } = evaluateHardRequirement(r, answers, cv);
+    if (ok) continue;
+
+    const configuredOnFail = r.on_fail === 'RECOMMEND_REJECT' ? 'RECOMMEND_REJECT' : 'MANUAL_REVIEW';
+    fails.push({
+      key: r.key,
+      label: r.label,
+      required: r.value,
+      got: got ?? null,
+      on_fail: unevaluable ? 'MANUAL_REVIEW' : configuredOnFail,
+      unevaluable,
+    });
   }
   return fails;
+}
+
+export function rejectableHardFailures(failures: HardRequirementFailure[]): HardRequirementFailure[] {
+  return failures.filter((fail) => fail.on_fail === 'RECOMMEND_REJECT' && !fail.unevaluable);
 }
 
 async function loadAnswers(applicationId: string): Promise<Record<string, unknown>> {
@@ -201,14 +259,15 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
 
     const answers = await loadAnswers(applicationId);
     const hardFails = evaluateHardRequirements(job, answers, parsed);
-    const rejectHardFail = hardFails.some((fail) => fail.on_fail === 'RECOMMEND_REJECT');
+    const rejectableHardFails = rejectableHardFailures(hardFails);
+    const rejectHardFail = rejectableHardFails.length > 0;
 
     let score: number | null = null;
     let decision: Recommendation = rejectHardFail ? 'RECOMMEND_REJECT' : 'MANUAL_REVIEW';
     let confidence: number | null = null;
     let strengths: unknown[] = [];
     let weaknesses: unknown[] = [];
-    let missing = hardFails.map((fail) => fail.label);
+    let missing = hardFails.filter((fail) => !fail.unevaluable).map((fail) => fail.label);
     let reasoning = 'Screening automation unavailable; queued for manual review.';
     let rawResponse: unknown = { error: 'screening.run was not called or failed' };
 
@@ -218,7 +277,6 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
           title: job.title,
           description: job.description,
           required_skills: job.required_skills,
-          preferred_skills: job.preferred_skills,
           min_experience_years: job.min_experience_years,
           education_requirement: job.education_requirement,
           soft_requirements: job.soft_requirements,
@@ -237,10 +295,16 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         strengths = Array.isArray(result.data.strengths) ? result.data.strengths : [];
         weaknesses = Array.isArray(result.data.weaknesses) ? result.data.weaknesses : [];
         missing = [
-          ...new Set([...asStringList(result.data.missing_requirements), ...hardFails.map((f) => f.label)]),
+          ...new Set([
+            ...asStringList(result.data.missing_requirements),
+            ...hardFails.filter((f) => !f.unevaluable).map((f) => f.label),
+          ]),
         ];
         reasoning = result.data.reasoning_summary || reasoning;
-        rawResponse = result.data;
+        rawResponse = {
+          ...result.data,
+          hard_requirement_failures: hardFails,
+        };
 
         // Apply shortlist_threshold as the auto-advance cut-off.
         // The threshold is the minimum score to receive a SHORTLIST recommendation.
@@ -272,7 +336,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     }
 
     if (rejectHardFail) decision = 'RECOMMEND_REJECT';
-    else if (hardFails.length && decision !== 'RECOMMEND_REJECT') decision = 'MANUAL_REVIEW';
+    else if (hardFails.some((fail) => !fail.unevaluable)) decision = 'MANUAL_REVIEW';
 
     await one(
       `INSERT INTO HRSYSTEM_screening_results (
@@ -291,7 +355,11 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         rejectHardFail,
         reasoning,
         'n8n/screening.run',
-        JSON.stringify(rawResponse ?? {}),
+        JSON.stringify(
+          rawResponse && typeof rawResponse === 'object'
+            ? { ...(rawResponse as Record<string, unknown>), hard_requirement_failures: hardFails }
+            : { hard_requirement_failures: hardFails, screening: rawResponse },
+        ),
       ],
     );
 
@@ -313,7 +381,11 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
 
     if (rejectHardFail && settings.auto_reject_hard_fail) {
       outcome = 'reject';
-      reason = 'Hard requirement failed';
+      const primary = rejectableHardFails[0];
+      reason =
+        rejectableHardFails.length === 1 && primary
+          ? `${primary.label}: expected ${formatHardRequirementExpected(primary.required)}, got ${formatHardRequirementGot(primary.got)}`
+          : `${rejectableHardFails.length} hard requirements failed`;
     } else if (score !== null && score <= settings.auto_reject_max_score) {
       outcome = 'reject';
       reason = `Score ${score} at or below auto-reject threshold (${settings.auto_reject_max_score})`;
@@ -374,7 +446,15 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         to_stage: toStage,
         actor_type: 'SYSTEM',
         actor_label: 'Automation',
-        payload: { reason },
+        payload: {
+          reason,
+          failed_rules: rejectableHardFails.map((fail) => ({
+            key: fail.key,
+            label: fail.label,
+            required: fail.required,
+            got: fail.got,
+          })),
+        },
       });
       await enqueueCommunication({
         candidate_id: application.candidate_id,

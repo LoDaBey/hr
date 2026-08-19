@@ -1,11 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import {
   ActionIcon,
+  Badge,
   Box,
   Burger,
   Group,
@@ -17,6 +17,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import {
+  IconAlertTriangle,
   IconBriefcase,
   IconCalendarEvent,
   IconLayoutDashboard,
@@ -29,6 +30,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { SidebarResizeHandle } from '@/components/app-shell/SidebarResizeHandle';
 import { PageTransition } from '@/components/PageTransition';
 import { SignOutButton } from '@/components/SignOutButton';
+import { useHrDashboard } from '@/hooks/useHrDashboard';
 import { ROLE, labelOf } from '@/lib/labels';
 import {
   motionTransitionFast,
@@ -41,7 +43,8 @@ import type { Role } from '@/types/domain';
 type NavItem = {
   href: string;
   label: string;
-  icon: ReactNode;
+  icon: React.ReactNode;
+  badgeCount?: number;
 };
 
 const NAV_PRIMARY: NavItem[] = [
@@ -56,6 +59,11 @@ const NAV_WORK: NavItem[] = [
     href: '/hr/interviews',
     label: 'Interviews',
     icon: <IconCalendarEvent size={20} aria-hidden />,
+  },
+  {
+    href: '/hr/errors',
+    label: 'Errors',
+    icon: <IconAlertTriangle size={20} aria-hidden />,
   },
 ];
 
@@ -90,6 +98,7 @@ function NavSection({
       ) : null}
       {items.map((item) => {
         const active = isActive(pathname, item.href);
+        const badgeCount = item.badgeCount ?? 0;
         const link = (
           <motion.div
             whileHover={{ x: collapsed ? 0 : 2 }}
@@ -101,6 +110,18 @@ function NavSection({
               href={item.href}
               label={collapsed ? undefined : item.label}
               leftSection={item.icon}
+              rightSection={
+                !collapsed && badgeCount > 0 ? (
+                  <Badge
+                    size="sm"
+                    variant="filled"
+                    color="warning"
+                    aria-label={`${badgeCount} open errors`}
+                  >
+                    {badgeCount}
+                  </Badge>
+                ) : undefined
+              }
               active={active}
               aria-label={item.label}
               variant={active ? 'filled' : 'subtle'}
@@ -144,6 +165,12 @@ export function AppShell({
   const roleLabel = labelOf(ROLE, userRole as Role, userRole || '—');
   const isMobile = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: true });
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false);
+  const { data: dashboardData } = useHrDashboard();
+
+  const openErrors = dashboardData?.totals.open_errors ?? 0;
+  const workNav: NavItem[] = NAV_WORK.map((item) =>
+    item.href === '/hr/errors' ? { ...item, badgeCount: openErrors } : item,
+  );
 
   const [collapsed, setCollapsed] = useLocalStorage({
     key: 'hr-sidebar-collapsed',
@@ -280,7 +307,7 @@ export function AppShell({
               />
               <NavSection
                 label="Schedule"
-                items={NAV_WORK}
+                items={workNav}
                 pathname={pathname}
                 collapsed={railCollapsed}
               />

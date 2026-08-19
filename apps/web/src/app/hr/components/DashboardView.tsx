@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
 import {
   Anchor,
   Group,
@@ -18,11 +17,8 @@ import { MotionStagger } from '@/components/hr/MotionPrimitives';
 import { useHrDashboard } from '@/hooks/useHrDashboard';
 import { listItemVariants, motionTransition } from '@/lib/motion';
 import { DASHBOARD_STAGE_COLS } from '@/lib/pipeline-rail';
-import { dismissBanner, toast } from '@/lib/toast';
 import { density, palette } from '@/theme';
 import { motion } from 'framer-motion';
-
-const DASHBOARD_ALERT_ID = 'dashboard-alerts';
 
 function candidatesHref(jobId: string, stage: string | null): string {
   const params = new URLSearchParams({ job_id: jobId });
@@ -48,47 +44,6 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 export function DashboardView() {
   const { data, error, isLoading } = useHrDashboard();
-
-  useEffect(() => {
-    if (!data) return;
-    const { totals } = data;
-    if (totals.failed_emails <= 0 && totals.open_errors <= 0) {
-      dismissBanner(DASHBOARD_ALERT_ID);
-      return;
-    }
-
-    const parts: string[] = [];
-    if (totals.failed_emails > 0) {
-      parts.push(
-        `${totals.failed_emails} failed email${totals.failed_emails === 1 ? '' : 's'}`,
-      );
-    }
-    if (totals.open_errors > 0) {
-      parts.push(
-        `${totals.open_errors} open workflow error${totals.open_errors === 1 ? '' : 's'}`,
-      );
-    }
-
-    toast.error(
-      (t) => (
-        <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-          <strong>Attention needed:</strong> {parts.join('. ')}.
-          <a
-            href="/hr/errors"
-            aria-label="Open errors page"
-            onClick={() => toast.dismiss(t.id)}
-            style={{ color: palette.accent, textDecoration: 'underline', marginLeft: 4 }}
-          >
-            View errors
-          </a>
-        </span>
-      ),
-      {
-        id: DASHBOARD_ALERT_ID,
-        duration: 12000,
-      },
-    );
-  }, [data]);
 
   if (isLoading) {
     return (

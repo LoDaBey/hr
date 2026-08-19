@@ -24,7 +24,7 @@ import type {
   JobStatus,
 } from '@/types/domain';
 
-const HARD_OPS: HardRequirementOp[] = ['>=', '<=', '==', 'truthy'];
+const HARD_OPS: HardRequirementOp[] = ['>=', '<=', '==', 'in', 'truthy'];
 const HARD_FAILS: HardFailAction[] = ['RECOMMEND_REJECT', 'MANUAL_REVIEW'];
 const JOB_QUESTION_TYPES: JobQuestionType[] = [
   'TEXT',
