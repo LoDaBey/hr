@@ -1,8 +1,9 @@
 'use client';
 
 import {
-  Alert,
   Badge,
+  Box,
+  Grid,
   Group,
   Loader,
   Paper,
@@ -58,7 +59,7 @@ function Section({
       withBorder
       p="md"
       radius={density.defaultRadius}
-      style={{ borderColor: `${palette.ink}14` }}
+      style={{ borderColor: `${palette.ink}14`, height: 'fit-content' }}
     >
       <Stack gap="sm">
         <Title order={3}>{title}</Title>
@@ -74,6 +75,118 @@ function parseStatusMessage(status: string): string | null {
   if (status === 'PENDING') return 'Reading CV…';
   if (status === 'MANUAL') return 'CV needs manual review';
   return null;
+}
+
+function DecisionBarSlot({
+  applicationId,
+  application,
+  assessment,
+  techtest,
+  communications,
+  interviews,
+  data,
+  assessmentAutoSkipped,
+  techtestAutoSkipped,
+  onMutate,
+}: {
+  applicationId: string;
+  application: import('@/types/domain').Application;
+  assessment: import('@/types/api').HrCandidatesGetResult['assessment'];
+  techtest: import('@/types/api').HrCandidatesGetResult['techtest'];
+  communications: import('@/types/domain').Communication[];
+  interviews: import('@/types/domain').Interview[];
+  data: import('@/types/api').HrCandidatesGetResult;
+  assessmentAutoSkipped: boolean;
+  techtestAutoSkipped: boolean;
+  onMutate: () => void;
+}) {
+  const showAssessmentInvite = ASSESSMENT_INVITE_STAGES.includes(application.stage);
+  const showTechTestInvite = TECHTEST_INVITE_STAGES.includes(application.stage);
+  const showSchedule =
+    application.stage === 'FINAL_INTERVIEW_PENDING' ||
+    application.stage === 'SECOND_FINAL_INTERVIEW';
+  const showComplete =
+    application.stage === 'FINAL_INTERVIEW_SCHEDULED' &&
+    interviews.some((i) => i.status === 'SCHEDULED');
+  const showFinalDecision = application.stage === 'FINAL_INTERVIEW_COMPLETED';
+  const openInterview = interviews.find((i) => i.status === 'SCHEDULED');
+
+  if (showAssessmentInvite) {
+    return (
+      <AssessmentInviteBar
+        applicationId={applicationId}
+        stage={application.stage}
+        assessment={assessment}
+        communications={communications}
+        jobHasAssessment={data.job_has_assessment}
+        autoInviteSkipped={assessmentAutoSkipped}
+        onInvited={onMutate}
+      />
+    );
+  }
+  if (showTechTestInvite) {
+    return (
+      <TechTestInviteBar
+        applicationId={applicationId}
+        stage={application.stage}
+        techtest={techtest}
+        communications={communications}
+        jobHasTechTest={data.job_has_techtest}
+        autoInviteSkipped={techtestAutoSkipped}
+        onInvited={onMutate}
+      />
+    );
+  }
+  if (showFinalDecision) {
+    return (
+      <FinalDecisionBar
+        applicationId={applicationId}
+        candidateName={data.candidate.full_name}
+        onDecided={onMutate}
+      />
+    );
+  }
+  if (showComplete && openInterview) {
+    return (
+      <Paper
+        withBorder
+        p="md"
+        radius={density.defaultRadius}
+        style={{ borderColor: `${palette.ink}14` }}
+      >
+        <Stack gap="sm">
+          <Text fw={600}>Complete interview</Text>
+          <InterviewCompleteForm interviewId={openInterview.id} onCompleted={onMutate} />
+        </Stack>
+      </Paper>
+    );
+  }
+  if (showSchedule) {
+    return (
+      <Paper
+        withBorder
+        p="md"
+        radius={density.defaultRadius}
+        style={{ borderColor: `${palette.ink}14` }}
+      >
+        <Stack gap="sm">
+          <Text fw={600}>Schedule final interview</Text>
+          <ScheduleForm
+            applicationId={applicationId}
+            roundNo={application.stage === 'SECOND_FINAL_INTERVIEW' ? 2 : 1}
+            onScheduled={onMutate}
+          />
+        </Stack>
+      </Paper>
+    );
+  }
+  return (
+    <DecisionBar
+      applicationId={applicationId}
+      stage={application.stage}
+      onDecided={onMutate}
+    />
+  );
 }
 
 export function CandidateDetailView({ applicationId }: { applicationId: string }) {
@@ -107,8 +220,6 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
     communications,
     timeline,
   } = data;
-  const showAssessmentInvite = ASSESSMENT_INVITE_STAGES.includes(application.stage);
-  const showTechTestInvite = TECHTEST_INVITE_STAGES.includes(application.stage);
   const assessmentAutoSkipped = timeline.some(
     (e) =>
       e.event_type === 'AUTO_INVITE_SKIPPED' &&
@@ -123,15 +234,8 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
       typeof e.payload === 'object' &&
       (e.payload as { kind?: string }).kind === 'TECH_TEST',
   );
-  const showSchedule =
-    application.stage === 'FINAL_INTERVIEW_PENDING' ||
-    application.stage === 'SECOND_FINAL_INTERVIEW';
-  const showComplete =
-    application.stage === 'FINAL_INTERVIEW_SCHEDULED' &&
-    interviews.some((i) => i.status === 'SCHEDULED');
-  const showFinalDecision = application.stage === 'FINAL_INTERVIEW_COMPLETED';
-  const openInterview = interviews.find((i) => i.status === 'SCHEDULED');
   const cvStatusMessage = cv ? parseStatusMessage(cv.parse_status) : null;
+  const refresh = () => void mutate();
 
   return (
     <Stack gap={density.sectionGap}>
@@ -174,162 +278,133 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         </Stack>
       </Paper>
 
-      {showAssessmentInvite ? (
-        <AssessmentInviteBar
+      <Box
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          background: palette.paper,
+          paddingBottom: 4,
+        }}
+      >
+        <DecisionBarSlot
           applicationId={application.id}
-          stage={application.stage}
+          application={application}
           assessment={assessment}
-          communications={communications}
-          jobHasAssessment={data.job_has_assessment}
-          autoInviteSkipped={assessmentAutoSkipped}
-          onInvited={() => void mutate()}
-        />
-      ) : showTechTestInvite ? (
-        <TechTestInviteBar
-          applicationId={application.id}
-          stage={application.stage}
           techtest={techtest}
           communications={communications}
-          jobHasTechTest={data.job_has_techtest}
-          autoInviteSkipped={techtestAutoSkipped}
-          onInvited={() => void mutate()}
+          interviews={interviews}
+          data={data}
+          assessmentAutoSkipped={assessmentAutoSkipped}
+          techtestAutoSkipped={techtestAutoSkipped}
+          onMutate={refresh}
         />
-      ) : showFinalDecision ? (
-        <FinalDecisionBar
-          applicationId={application.id}
-          candidateName={candidate.full_name}
-          onDecided={() => void mutate()}
-        />
-      ) : showComplete && openInterview ? (
-        <Paper
-          withBorder
-          p="md"
-          radius={density.defaultRadius}
-          style={{ borderColor: `${palette.ink}14` }}
-        >
-          <Stack gap="sm">
-            <Text fw={600}>Complete interview</Text>
-            <InterviewCompleteForm
-              interviewId={openInterview.id}
-              onCompleted={() => void mutate()}
-            />
-          </Stack>
-        </Paper>
-      ) : showSchedule ? (
-        <Paper
-          withBorder
-          p="md"
-          radius={density.defaultRadius}
-          style={{ borderColor: `${palette.ink}14` }}
-        >
-          <Stack gap="sm">
-            <Text fw={600}>Schedule final interview</Text>
-            <ScheduleForm
-              applicationId={application.id}
-              roundNo={application.stage === 'SECOND_FINAL_INTERVIEW' ? 2 : 1}
-              onScheduled={() => void mutate()}
-            />
-          </Stack>
-        </Paper>
-      ) : (
-        <DecisionBar
-          applicationId={application.id}
-          stage={application.stage}
-          onDecided={() => void mutate()}
-        />
-      )}
+      </Box>
 
-      <Section title="Application answers">
-        <ApplicationAnswersSection answers={application_answers} />
-      </Section>
+      <Grid gutter="md" align="flex-start">
+        <Grid.Col span={{ base: 12, lg: 7 }}>
+          <Section title="Application answers">
+            <ApplicationAnswersSection answers={application_answers} />
+          </Section>
+        </Grid.Col>
 
-      <Section title="CV">
-        {cv ? (
-          <>
-            <Group>
-              <MotionButton
-                component="a"
-                href={`/api/hr/candidates/${application.id}/cv`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="cursor-pointer rounded-lg"
-                aria-label="Open CV"
-              >
-                Open CV
-              </MotionButton>
-              <Text size="sm" c="dimmed">
-                {cv.original_name}
-              </Text>
-              {cvStatusMessage ? (
-                <Badge color="warning" variant="light">
-                  {cvStatusMessage}
-                </Badge>
-              ) : null}
-            </Group>
-            <Text fw={600}>Extracted from CV</Text>
-            {cv.parsed ? (
-              <ParsedCvSummary parsed={cv.parsed as import('./ParsedCvSummary').ParsedCv} />
+        <Grid.Col span={{ base: 12, lg: 5 }}>
+          <Section title="CV">
+            {cv ? (
+              <>
+                <Group>
+                  <MotionButton
+                    component="a"
+                    href={`/api/hr/candidates/${application.id}/cv`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="cursor-pointer rounded-lg"
+                    aria-label="Open CV"
+                  >
+                    Open CV
+                  </MotionButton>
+                  <Text size="sm" c="dimmed">
+                    {cv.original_name}
+                  </Text>
+                  {cvStatusMessage ? (
+                    <Badge color="warning" variant="light">
+                      {cvStatusMessage}
+                    </Badge>
+                  ) : null}
+                </Group>
+                <Text fw={600}>Extracted from CV</Text>
+                {cv.parsed ? (
+                  <ParsedCvSummary parsed={cv.parsed as import('./ParsedCvSummary').ParsedCv} />
+                ) : (
+                  <Text c="dimmed">No parsed summary yet.</Text>
+                )}
+              </>
             ) : (
-              <Text c="dimmed">No parsed summary yet.</Text>
+              <Text c="dimmed">No CV uploaded. Request one if this role requires it.</Text>
             )}
-          </>
-        ) : (
-          <Text c="dimmed">No CV uploaded. Request one if this role requires it.</Text>
-        )}
-      </Section>
+          </Section>
+        </Grid.Col>
 
-      <Section title="Screening result">
-        <ScreeningResultSection screening={screening} />
-      </Section>
+        <Grid.Col span={12}>
+          <Section title="Screening result">
+            <ScreeningResultSection screening={screening} />
+          </Section>
+        </Grid.Col>
 
-      {assessment?.review ? (
-        <Section title="Technical assessment review">
-          <AssessmentReview
-            review={{
-              id: assessment.id,
-              late: assessment.late,
-              ai_score: assessment.ai_score,
-              ai_max_score: assessment.ai_max_score,
-              submitted_at: assessment.submitted_at,
-              overall_feedback: assessment.review.overall_feedback,
-              questions: assessment.review.questions,
-            }}
-          />
-        </Section>
-      ) : null}
+        {assessment?.review ? (
+          <Grid.Col span={12}>
+            <Section title="Technical assessment review">
+              <AssessmentReview
+                review={{
+                  id: assessment.id,
+                  late: assessment.late,
+                  ai_score: assessment.ai_score,
+                  ai_max_score: assessment.ai_max_score,
+                  submitted_at: assessment.submitted_at,
+                  overall_feedback: assessment.review.overall_feedback,
+                  questions: assessment.review.questions,
+                }}
+              />
+            </Section>
+          </Grid.Col>
+        ) : null}
 
-      {techtest?.review ? (
-        <Section title="Recorded technical interview">
-          <TechTestReview
-            review={{
-              id: techtest.id,
-              late: techtest.late,
-              ai_score: techtest.ai_score,
-              ai_max_score: techtest.ai_max_score,
-              submitted_at: techtest.submitted_at,
-              overall_feedback: techtest.review.overall_feedback,
-              questions: techtest.review.questions,
-              recording_status: techtest.recording_status,
-              recording: techtest.review.recording,
-              proctoring_flag: techtest.review.proctoring_flag,
-              proctoring_summary: techtest.review.proctoring_summary,
-              events: techtest.review.events,
-              session_started_at: techtest.started_at,
-            }}
-          />
-        </Section>
-      ) : null}
+        {techtest?.review ? (
+          <Grid.Col span={12}>
+            <Section title="Recorded technical interview">
+              <TechTestReview
+                review={{
+                  id: techtest.id,
+                  late: techtest.late,
+                  ai_score: techtest.ai_score,
+                  ai_max_score: techtest.ai_max_score,
+                  submitted_at: techtest.submitted_at,
+                  overall_feedback: techtest.review.overall_feedback,
+                  questions: techtest.review.questions,
+                  recording_status: techtest.recording_status,
+                  recording: techtest.review.recording,
+                  proctoring_flag: techtest.review.proctoring_flag,
+                  proctoring_summary: techtest.review.proctoring_summary,
+                  events: techtest.review.events,
+                  session_started_at: techtest.started_at,
+                }}
+              />
+            </Section>
+          </Grid.Col>
+        ) : null}
 
-      <Section title="Emails">
-        <CandidateEmailsSection
-          communications={communications}
-          onChanged={() => void mutate()}
-        />
-      </Section>
+        <Grid.Col span={{ base: 12, lg: 5 }}>
+          <Section title="Emails">
+            <CandidateEmailsSection communications={communications} onChanged={refresh} />
+          </Section>
+        </Grid.Col>
 
-      <Section title="Timeline">
-        <CandidateTimelineSection timeline={timeline} />
-      </Section>
+        <Grid.Col span={{ base: 12, lg: 7 }}>
+          <Section title="Timeline">
+            <CandidateTimelineSection timeline={timeline} />
+          </Section>
+        </Grid.Col>
+      </Grid>
     </Stack>
   );
 }
