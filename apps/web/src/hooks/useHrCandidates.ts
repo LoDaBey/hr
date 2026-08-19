@@ -30,7 +30,10 @@ function buildKey(query: HrCandidatesQuery): string {
 }
 
 export function useHrCandidates(query: HrCandidatesQuery) {
-  return useSWR<HrCandidatesListResult>(buildKey(query));
+  return useSWR<HrCandidatesListResult>(buildKey(query), {
+    refreshInterval: (latest) =>
+      latest?.rows.some((row) => row.screening_pending) ? 10_000 : 0,
+  });
 }
 
 export function hrCandidatesKey(query: HrCandidatesQuery): string {

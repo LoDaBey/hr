@@ -213,6 +213,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
     application_answers,
     cv,
     screening,
+    screening_pending,
     assessment,
     techtest,
     interviews,
@@ -347,7 +348,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         </Group>
 
         <Section title="Screening result">
-          <ScreeningResultSection screening={screening} />
+          <ScreeningResultSection screening={screening} screeningPending={screening_pending} />
         </Section>
 
         {assessment?.review ? (

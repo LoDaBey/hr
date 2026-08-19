@@ -17,20 +17,13 @@ import { ErrorState } from '@/components/ErrorState';
 import { MotionButton } from '@/components/MotionButton';
 import { StageRail } from '@/components/StageRail';
 import { datetime } from '@/lib/format';
-import {
-  CANDIDATE_LIST_STAGES,
-  RECOMMENDATION,
-  STAGE,
-  STATUS,
-  labelOf,
-  selectOptions,
-  stageLabel,
-} from '@/lib/labels';
+import { CANDIDATE_LIST_STAGES, RECOMMENDATION, STAGE, STATUS, labelOf, selectOptions, stageLabel } from '@/lib/labels';
 import { useHrCandidates } from '@/hooks/useHrCandidates';
 import { useHrJobs } from '@/hooks/useHrJobs';
 import { density } from '@/theme';
 import type { Recommendation, Stage, Status } from '@/types/domain';
 import { CandidateRowActions } from './CandidateRowActions';
+import { ScreeningPendingCell } from './ScreeningPendingCell';
 
 const pageSize = 20;
 
@@ -213,12 +206,27 @@ export function CandidatesListView() {
                 <Text size="sm">{labelOf(STATUS, row.status as Status)}</Text>
               ),
             },
-            { accessor: 'screening_score', title: 'Score' },
+            {
+              accessor: 'screening_score',
+              title: 'Score',
+              render: (row) =>
+                row.screening_pending ? (
+                  <ScreeningPendingCell />
+                ) : (
+                  <Text size="sm">{row.screening_score ?? '—'}</Text>
+                ),
+            },
             {
               accessor: 'recommendation',
               title: 'AI rec',
               render: (row) =>
-                labelOf(RECOMMENDATION, row.recommendation as Recommendation | null),
+                row.screening_pending ? (
+                  <ScreeningPendingCell />
+                ) : (
+                  <Text size="sm">
+                    {labelOf(RECOMMENDATION, row.recommendation as Recommendation | null)}
+                  </Text>
+                ),
             },
             {
               accessor: 'created_at',
