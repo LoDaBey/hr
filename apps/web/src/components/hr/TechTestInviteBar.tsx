@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Alert, Badge, Group, Paper, Stack, Text } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
 import { ApiError, api } from '@/lib/api';
-import { datetime, time } from '@/lib/format';
+import { datetime, inviteDeadlineShort, time } from '@/lib/format';
 import { SITTING_STATUS, labelOf } from '@/lib/labels';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
@@ -221,7 +221,10 @@ export function TechTestInviteBar({
           <>
             {sentAt ? (
               <Text size="sm" fw={600} style={{ color: palette.ink }}>
-                Recorded test invitation sent {time(sentAt)}
+                Invitation sent {time(sentAt)}
+                {techtest
+                  ? ` · must start by ${inviteDeadlineShort(techtest.invite_deadline)}`
+                  : ''}
               </Text>
             ) : null}
             {techtest ? (
@@ -229,10 +232,16 @@ export function TechTestInviteBar({
                 <Badge color="accent" variant="light">
                   {labelOf(SITTING_STATUS, techtest.status)}
                 </Badge>
-                <Text size="sm">
-                  Start by {datetime(techtest.invite_deadline)} · {techtest.duration_minutes} min
-                  once started
-                </Text>
+                {!sentAt ? (
+                  <Text size="sm">
+                    Start by {datetime(techtest.invite_deadline)} · {techtest.duration_minutes} min
+                    once started
+                  </Text>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {techtest.duration_minutes} min once started
+                  </Text>
+                )}
                 {techtest.late ? (
                   <Badge color="warning" variant="light">
                     Late

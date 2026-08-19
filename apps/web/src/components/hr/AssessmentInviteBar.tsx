@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Alert, Badge, Group, Paper, Stack, Text } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
 import { ApiError, api } from '@/lib/api';
-import { datetime, time } from '@/lib/format';
+import { datetime, inviteDeadlineShort, time } from '@/lib/format';
 import { SITTING_STATUS, labelOf } from '@/lib/labels';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
@@ -221,7 +221,10 @@ export function AssessmentInviteBar({
           <>
             {sentAt ? (
               <Text size="sm" fw={600} style={{ color: palette.ink }}>
-                Assessment invitation sent {time(sentAt)}
+                Invitation sent {time(sentAt)}
+                {assessment
+                  ? ` · must start by ${inviteDeadlineShort(assessment.invite_deadline)}`
+                  : ''}
               </Text>
             ) : null}
             {assessment ? (
@@ -229,10 +232,16 @@ export function AssessmentInviteBar({
                 <Badge color="accent" variant="light">
                   {labelOf(SITTING_STATUS, assessment.status)}
                 </Badge>
-                <Text size="sm">
-                  Start by {datetime(assessment.invite_deadline)} · {assessment.duration_minutes}{' '}
-                  min once started
-                </Text>
+                {!sentAt ? (
+                  <Text size="sm">
+                    Start by {datetime(assessment.invite_deadline)} · {assessment.duration_minutes}{' '}
+                    min once started
+                  </Text>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {assessment.duration_minutes} min once started
+                  </Text>
+                )}
                 {assessment.late ? (
                   <Badge color="warning" variant="light">
                     Late

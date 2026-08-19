@@ -9,6 +9,7 @@ import {
   markCommunicationSent,
 } from '@/lib/repos/communications';
 import { findEmailTemplateByKey } from '@/lib/repos/email-templates';
+import { recomputeInviteDeadlineAfterSend } from '@/lib/pipeline/invites';
 import { insertWorkflowError } from '@/lib/repos/workflow-errors';
 import type { EmailDispatchResult, EmailSendData, HrCommunicationDispatchResult } from '@/types/api';
 import type { Communication } from '@/types/domain';
@@ -68,6 +69,23 @@ async function dispatchOne(row: Communication): Promise<'sent' | 'failed'> {
     }
 
     await markCommunicationSent(row.id, messageId);
+
+    const sent = await findCommunicationById(row.id);
+    if (
+      sent?.status === 'SENT' &&
+      sent.sent_at &&
+      sent.application_id &&
+      (sent.template_key === 'ASSESSMENT_INVITE' || sent.template_key === 'TECHTEST_INVITE')
+    ) {
+      await recomputeInviteDeadlineAfterSend({
+        communicationId: sent.id,
+        applicationId: sent.application_id,
+        templateKey: sent.template_key,
+        dedupeKey: sent.dedupe_key,
+        sentAt: sent.sent_at,
+      });
+    }
+
     return 'sent';
   } catch (error) {
     const message = error instanceof Error ? error.message : 'email.send failed';

@@ -553,6 +553,93 @@ export async function cancelScheduledInvite(
   });
 }
 
+/**
+ * When an invite email is marked SENT, recompute invite_deadline from the actual
+ * delivery time (not the originally scheduled send time).
+ */
+export async function recomputeInviteDeadlineAfterSend(input: {
+  communicationId: string;
+  applicationId: string;
+  templateKey: string;
+  dedupeKey: string;
+  sentAt: string;
+}): Promise<void> {
+  if (input.templateKey !== 'ASSESSMENT_INVITE' && input.templateKey !== 'TECHTEST_INVITE') {
+    return;
+  }
+
+  const kind: InviteKind = input.templateKey === 'ASSESSMENT_INVITE' ? 'ASSESSMENT' : 'TECH_TEST';
+  const config = KIND_CONFIG[kind];
+  const sittingId = input.dedupeKey.split(':').pop();
+  if (!sittingId) return;
+
+  await tx(async (client) => {
+    const row = await oneTx<{
+      id: string;
+      application_id: string;
+      candidate_id: string;
+      job_id: string;
+      stage: Stage;
+      invite_hours: number;
+      invite_deadline: string;
+    }>(
+      client,
+      `SELECT ca.id, ca.application_id, a.candidate_id, a.job_id, a.stage,
+              ca.invite_deadline, j.${config.inviteHoursColumn} AS invite_hours
+       FROM HRSYSTEM_candidate_assessments ca
+       JOIN HRSYSTEM_applications a ON a.id = ca.application_id
+       JOIN HRSYSTEM_jobs j ON j.id = a.job_id
+       WHERE ca.id = $1 AND ca.kind = $2`,
+      [sittingId, kind],
+    );
+    if (!row) return;
+
+    const updated = await oneTx<{ invite_deadline: string }>(
+      client,
+      `UPDATE HRSYSTEM_candidate_assessments
+       SET invite_deadline = $2::timestamptz + make_interval(hours => $3::int),
+           updated_at = now()
+       WHERE id = $1
+       RETURNING invite_deadline`,
+      [sittingId, input.sentAt, row.invite_hours],
+    );
+    if (!updated) return;
+
+    await client.query(
+      `UPDATE HRSYSTEM_access_tokens
+       SET expires_at = $2
+       WHERE candidate_assessment_id = $1 AND used_at IS NULL`,
+      [sittingId, updated.invite_deadline],
+    );
+
+    await client.query(
+      `INSERT INTO HRSYSTEM_recruitment_events (
+         application_id, candidate_id, job_id, event_type,
+         from_stage, to_stage, actor_type, actor_label, payload
+       ) VALUES (
+         $1, $2, $3, 'INVITE_DEADLINE_RECOMPUTED',
+         $4::HRSYSTEM_app_stage, $4::HRSYSTEM_app_stage,
+         'SYSTEM', 'email-dispatch', $5::jsonb
+       )`,
+      [
+        row.application_id,
+        row.candidate_id,
+        row.job_id,
+        row.stage,
+        JSON.stringify({
+          candidate_assessment_id: sittingId,
+          communication_id: input.communicationId,
+          template_key: input.templateKey,
+          sent_at: input.sentAt,
+          previous_invite_deadline: row.invite_deadline,
+          invite_deadline: updated.invite_deadline,
+          invite_hours: row.invite_hours,
+        }),
+      ],
+    );
+  });
+}
+
 export async function auditAutoInviteSkipped(
   client: PoolClient,
   input: {
