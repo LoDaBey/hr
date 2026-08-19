@@ -91,6 +91,7 @@ type JobQuestionRow = {
   order_index: number;
 };
 
+
 function buildApplicationAnswers(
   candidate: Candidate,
   application: Application,
