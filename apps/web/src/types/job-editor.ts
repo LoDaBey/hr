@@ -113,6 +113,13 @@ export const MILITARY_STATUS_OPTIONS = [
   'Not applicable',
 ] as const;
 
+export const MARITAL_STATUS_OPTIONS = [
+  'Single',
+  'Married',
+  'Divorced',
+  'Widowed',
+] as const;
+
 export const HARD_OP_OPTIONS: Array<{ value: HardRequirementOp; label: string }> = [
   { value: '>=', label: 'At least' },
   { value: '<=', label: 'At most' },

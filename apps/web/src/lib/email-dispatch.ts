@@ -43,7 +43,7 @@ async function dispatchOne(row: Communication): Promise<'sent' | 'failed'> {
         html,
         from_name: fromName(row.variables),
       },
-      { timeoutMs: 8_000 },
+      {},
     );
 
     if (!result.ok) {
