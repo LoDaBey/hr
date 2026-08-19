@@ -260,7 +260,7 @@ export function ParsedCvSummary({
           >
             {showProjects ? `Hide projects` : `Show ${projects.length} project${projects.length === 1 ? '' : 's'}`}
           </Anchor>
-          <Collapse in={showProjects}>
+          <Collapse opened={showProjects}>
             <Stack gap={8} mt={8}>
               {projects.map((p, i) => {
                 const name = p.name ?? p.title ?? `Project ${i + 1}`;
@@ -288,7 +288,7 @@ export function ParsedCvSummary({
         {showRaw ? 'Hide raw' : 'View raw'}
       </Anchor>
 
-      <Collapse in={showRaw}>
+      <Collapse opened={showRaw}>
         <Text
           size="xs"
           ff="monospace"
