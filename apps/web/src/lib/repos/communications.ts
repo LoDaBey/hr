@@ -7,6 +7,30 @@ export async function findCommunicationById(id: string): Promise<Communication |
   return one<Communication>(`SELECT * FROM HRSYSTEM_communications WHERE id = $1`, [id]);
 }
 
+export async function enqueueCommunicationTx(
+  client: PoolClient,
+  input: NewCommunication,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO HRSYSTEM_communications (
+       candidate_id, application_id, template_key, to_email,
+       subject, variables, dedupe_key, scheduled_for
+     )
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, COALESCE($8::timestamptz, now()))
+     ON CONFLICT (dedupe_key) DO NOTHING`,
+    [
+      input.candidate_id ?? null,
+      input.application_id ?? null,
+      input.template_key,
+      input.to_email,
+      input.subject ?? null,
+      JSON.stringify(input.variables ?? {}),
+      input.dedupe_key,
+      input.scheduled_for ?? null,
+    ],
+  );
+}
+
 export async function enqueueCommunication(input: NewCommunication): Promise<Communication> {
   const inserted = await one<Communication>(
     `INSERT INTO HRSYSTEM_communications (
