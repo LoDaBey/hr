@@ -61,10 +61,11 @@ export async function POST(
                expires_at,
                now() + (duration_minutes || ' minutes')::interval
              ),
+             preflight_external_display = COALESCE($2, preflight_external_display),
              updated_at = now()
          WHERE id = $1 AND status IN ('INVITED', 'STARTED')
          RETURNING started_at, expires_at`,
-        [sitting.sitting_id],
+        [sitting.sitting_id, body.preflight_external_display ?? null],
       );
 
       if (!times) {

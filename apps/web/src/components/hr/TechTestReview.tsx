@@ -30,6 +30,7 @@ export type TechTestReviewData = AssessmentReviewData & {
   } | null;
   proctoring_flag: 'CLEAN' | 'MINOR_FLAGS' | 'REVIEW_RECORDING' | null;
   proctoring_summary: string | null;
+  preflight_external_display: boolean | null;
   events: TechTestProctorRow[];
   session_started_at: string | null;
 };
@@ -152,9 +153,14 @@ export function TechTestReview({
             </Badge>
           </Group>
           <Text size="sm">{eventSummary}</Text>
+          {review.preflight_external_display ? (
+            <Text size="sm" style={{ color: palette.warning }}>
+              Started with a second display connected.
+            </Text>
+          ) : null}
           <Text size="xs" c="dimmed">
-            Browser signals are descriptive only. They do not change the score — review the
-            recording and decide.
+            Browser signals are advisory. They cannot detect a second computer, a phone, or a
+            person off-camera. Watch the recording before deciding.
           </Text>
 
           {review.events.length === 0 ? (

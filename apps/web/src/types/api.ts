@@ -217,6 +217,7 @@ export interface CandidateAssessmentGetResult {
     camera: boolean;
     mic: boolean;
     fullscreen: boolean;
+    screen_share: boolean;
     rules: string[];
   };
 }
@@ -256,6 +257,7 @@ export interface CandidateAssessmentSubmitResult {
 export interface TechTestStartPayload {
   token: string;
   accepted_rules: boolean;
+  preflight_external_display?: boolean;
 }
 
 export interface ProctoringEventInput {
@@ -484,12 +486,14 @@ export interface HrCandidatesGetResult {
     ai_score: number | null;
     ai_max_score: number | null;
     recording_status: RecordingStatus | null;
+    preflight_external_display: boolean | null;
     review: {
       overall_feedback: string | null;
       has_overall_evaluation: boolean;
       grading_error: string | null;
       proctoring_flag: 'CLEAN' | 'MINOR_FLAGS' | 'REVIEW_RECORDING' | null;
       proctoring_summary: string | null;
+      preflight_external_display: boolean | null;
       recording: {
         public_id: string;
         format: string | null;
@@ -714,6 +718,7 @@ export interface HrJobAssessmentDetail {
   require_camera: boolean;
   require_mic: boolean;
   require_fullscreen: boolean;
+  require_screen_share: boolean;
   rules: string | null;
   is_active: boolean;
   questions: AssessmentQuestion[];
@@ -762,6 +767,7 @@ export interface HrJobsAssessmentSetPayload {
   require_camera?: boolean;
   require_mic?: boolean;
   require_fullscreen?: boolean;
+  require_screen_share?: boolean;
   rules?: string | null;
   questions: Array<{
     type: AssessmentQuestion['type'];

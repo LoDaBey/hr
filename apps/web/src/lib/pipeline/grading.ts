@@ -542,7 +542,7 @@ function proctoringFlag(rows: ProctorAgg[]): {
 
   let flag: ProctoringFlag = 'CLEAN';
   if (critical.length > 0) flag = 'REVIEW_RECORDING';
-  else if (warnCount > 5) flag = 'MINOR_FLAGS';
+  else if (warnCount > 2) flag = 'MINOR_FLAGS';
 
   const parts: string[] = [];
   for (const row of rows) {
@@ -558,7 +558,15 @@ function proctoringFlag(rows: ProctorAgg[]): {
               ? 'camera off'
               : row.event === 'MIC_OFF'
                 ? 'microphone off'
-                : row.event.toLowerCase().replaceAll('_', ' ');
+                : row.event === 'EXTERNAL_DISPLAY'
+                  ? 'external display'
+                  : row.event === 'SCREEN_SHARE_STOPPED'
+                    ? 'screen share stopped'
+                    : row.event === 'WINDOW_BLUR'
+                      ? 'focus loss'
+                      : row.event === 'PASTE_DETECTED'
+                        ? 'paste'
+                        : row.event.toLowerCase().replaceAll('_', ' ');
     parts.push(`${row.n} ${label}${Number(row.n) === 1 ? '' : 's'}`);
   }
 

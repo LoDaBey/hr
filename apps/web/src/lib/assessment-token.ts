@@ -30,6 +30,7 @@ export type ResolvedAssessmentToken = {
   require_camera: boolean;
   require_mic: boolean;
   require_fullscreen: boolean;
+  require_screen_share: boolean;
   rules: string | null;
 };
 
@@ -67,6 +68,7 @@ type TokenRow = {
   require_camera: boolean;
   require_mic: boolean;
   require_fullscreen: boolean;
+  require_screen_share: boolean;
   rules: string | null;
 };
 
@@ -84,7 +86,7 @@ export async function resolveToken(
             c.full_name AS candidate_name, c.email,
             j.title AS job_title,
             s.title, s.instructions, s.duration_minutes AS assessment_duration_minutes,
-            s.require_camera, s.require_mic, s.require_fullscreen, s.rules
+            s.require_camera, s.require_mic, s.require_fullscreen, s.require_screen_share, s.rules
      FROM HRSYSTEM_access_tokens t
      JOIN HRSYSTEM_candidate_assessments ca ON ca.id = t.candidate_assessment_id
      JOIN HRSYSTEM_assessments s ON s.id = ca.assessment_id
@@ -161,6 +163,7 @@ export async function resolveToken(
       require_camera: row.require_camera,
       require_mic: row.require_mic,
       require_fullscreen: row.require_fullscreen,
+      require_screen_share: row.require_screen_share,
       rules: row.rules,
     },
   };

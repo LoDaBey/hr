@@ -65,6 +65,7 @@ export async function GET(
         camera: sitting.require_camera,
         mic: sitting.require_mic,
         fullscreen: sitting.require_fullscreen,
+        screen_share: sitting.require_screen_share,
         rules: rulesToList(sitting.rules),
       },
     };

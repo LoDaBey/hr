@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_assessments (
   require_camera   boolean NOT NULL DEFAULT false,    -- TECH_TEST only
   require_mic      boolean NOT NULL DEFAULT false,
   require_fullscreen boolean NOT NULL DEFAULT false,
+  require_screen_share boolean NOT NULL DEFAULT false,
   rules            text,                             -- shown to candidate before start (TECH_TEST)
   is_active        boolean NOT NULL DEFAULT true,
   created_at       timestamptz NOT NULL DEFAULT now()
@@ -290,6 +291,7 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_candidate_assessments (
   violations_count  int NOT NULL DEFAULT 0,
   reminder_sent_at  timestamptz,
   grading_attempts  int NOT NULL DEFAULT 0,
+  preflight_external_display boolean,
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now()
 );
@@ -330,7 +332,8 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_proctoring_events (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   candidate_assessment_id uuid NOT NULL REFERENCES HRSYSTEM_candidate_assessments(id) ON DELETE CASCADE,
   event                   text NOT NULL,   -- TAB_CHANGED, FULLSCREEN_EXIT, CAMERA_OFF, MIC_OFF,
-                                           -- WINDOW_BLUR, CONNECTION_LOST, PASTE_DETECTED
+                                           -- WINDOW_BLUR, CONNECTION_LOST, PASTE_DETECTED,
+                                           -- EXTERNAL_DISPLAY, SCREEN_SHARE_STOPPED
   severity                text NOT NULL DEFAULT 'INFO'
                           CHECK (severity IN ('INFO','WARN','CRITICAL')),
   occurred_at             timestamptz NOT NULL,

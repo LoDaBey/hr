@@ -393,6 +393,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
                 recording: techtest.review.recording,
                 proctoring_flag: techtest.review.proctoring_flag,
                 proctoring_summary: techtest.review.proctoring_summary,
+                preflight_external_display: techtest.review.preflight_external_display,
                 events: techtest.review.events,
                 session_started_at: techtest.started_at,
               }}

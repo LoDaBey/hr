@@ -15,6 +15,7 @@ const bodySchema = z.object({
   require_camera: z.boolean().optional(),
   require_mic: z.boolean().optional(),
   require_fullscreen: z.boolean().optional(),
+  require_screen_share: z.boolean().optional(),
   rules: z.string().nullable().optional(),
   questions: z
     .array(

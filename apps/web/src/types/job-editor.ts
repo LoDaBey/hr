@@ -152,6 +152,7 @@ export type AssessmentDraft = {
   require_camera: boolean;
   require_mic: boolean;
   require_fullscreen: boolean;
+  require_screen_share: boolean;
   /** Plain text; one rule per line when shown to the candidate. */
   rules: string;
 };

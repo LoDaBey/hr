@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Group,
   Loader,
   Modal,
@@ -36,6 +37,7 @@ export function TechInterviewSitting({
   stream,
   recordingReady = true,
   paused = false,
+  proctoringBanner = null,
   onPasteDetected,
   onSubmitRequest,
   submitting,
@@ -46,7 +48,8 @@ export function TechInterviewSitting({
   stream: MediaStream | null;
   recordingReady?: boolean;
   paused?: boolean;
-  onPasteDetected?: () => void;
+  proctoringBanner?: string | null;
+  onPasteDetected?: (charCount?: number) => void;
   onSubmitRequest: (answers: Record<string, unknown>) => void | Promise<void>;
   submitting?: boolean;
 }) {
@@ -227,6 +230,16 @@ export function TechInterviewSitting({
           ) : null}
         </Group>
       </Group>
+
+      {proctoringBanner ? (
+        <Alert
+          color="warning"
+          variant="light"
+          styles={{ root: { borderColor: `${palette.warning}55` } }}
+        >
+          {proctoringBanner}
+        </Alert>
+      ) : null}
 
       <Group gap="xs" wrap="wrap" aria-label="Question navigation">
         {questions.map((q, i) => {

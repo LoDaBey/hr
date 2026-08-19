@@ -20,8 +20,13 @@ import {
   streamMeetsRequirements,
   type MediaRequirements,
 } from '@/lib/media-stream';
+import { isExternalDisplayConnected } from '@/hooks/useProctoring';
 import { density, palette } from '@/theme';
 import type { CandidateAssessmentGetResult } from '@/types/api';
+import {
+  ScreenSharePreflightBlock,
+  useScreenShareMonitor,
+} from './ScreenSharePreflight';
 
 type MediaState = 'idle' | 'requesting' | 'ready' | 'denied' | 'error';
 
@@ -34,8 +39,12 @@ export function TechInterviewPreflight({
   data: CandidateAssessmentGetResult;
   starting?: boolean;
   startError?: string | null;
-  /** Receives the live MediaStream (ownership transfers — do not stop tracks here). */
-  onStart: (stream: MediaStream | null) => void | Promise<void>;
+  /** Receives camera/mic stream and optional screen-share stream (ownership transfers). */
+  onStart: (
+    stream: MediaStream | null,
+    screenStream: MediaStream | null,
+    preflightExternalDisplay: boolean,
+  ) => void | Promise<void>;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -43,7 +52,19 @@ export function TechInterviewPreflight({
     camera: data.requirements?.camera ?? true,
     mic: data.requirements?.mic ?? true,
   };
+  const needsScreenShare = data.requirements?.screen_share === true;
+  const screenShare = useScreenShareMonitor();
+  const [externalDisplay, setExternalDisplay] = useState(() => isExternalDisplayConnected());
+
+  const checkExternalDisplay = useCallback(() => {
+    setExternalDisplay(isExternalDisplayConnected());
+  }, []);
   const needsMedia = requirements.camera || requirements.mic;
+
+  useEffect(() => {
+    checkExternalDisplay();
+  }, [checkExternalDisplay]);
+
   const [mediaState, setMediaState] = useState<MediaState>(() =>
     needsMedia ? 'requesting' : 'ready',
   );
@@ -116,6 +137,7 @@ export function TechInterviewPreflight({
   );
 
   const requestMedia = useCallback(async () => {
+    checkExternalDisplay();
     if (!needsMedia) {
       setMediaState('ready');
       return;
@@ -139,7 +161,7 @@ export function TechInterviewPreflight({
     } catch (error) {
       applyMediaError(error);
     }
-  }, [applyMediaError, mediaConstraints, needsMedia, refreshTrackStatus, requirements, stopTracks]);
+  }, [applyMediaError, checkExternalDisplay, mediaConstraints, needsMedia, refreshTrackStatus, requirements, stopTracks]);
 
   useEffect(() => {
     if (!needsMedia) return;
@@ -189,9 +211,12 @@ export function TechInterviewPreflight({
   ]);
 
   const devicesLive = streamMeetsRequirements(streamRef.current, requirements);
+  const screenShareReady = !needsScreenShare || screenShare.ready;
   const canStart =
     acceptedRules &&
     !starting &&
+    !externalDisplay &&
+    screenShareReady &&
     (needsMedia ? mediaState === 'ready' && devicesLive : true);
 
   const handleStart = async () => {
@@ -199,7 +224,8 @@ export function TechInterviewPreflight({
     const stream = streamRef.current;
     if (needsMedia && !streamMeetsRequirements(stream, requirements)) return;
     streamRef.current = null;
-    await onStart(stream);
+    const screenStream = needsScreenShare ? screenShare.release() : null;
+    await onStart(stream, screenStream, externalDisplay);
   };
 
   const deviceLabel = formatDeviceStatus(trackStatus);
@@ -360,6 +386,33 @@ export function TechInterviewPreflight({
           </Stack>
         </Paper>
       )}
+
+      {externalDisplay ? (
+        <Alert color="danger" title="Second display detected">
+          <Stack gap="sm">
+            <Text size="sm">
+              A second display was detected. Please disconnect it before starting.
+            </Text>
+            <MotionButton
+              className="cursor-pointer rounded-lg"
+              aria-label="Re-check for second display"
+              variant="default"
+              onClick={() => checkExternalDisplay()}
+            >
+              Retry
+            </MotionButton>
+          </Stack>
+        </Alert>
+      ) : null}
+
+      {needsScreenShare && !externalDisplay ? (
+        <ScreenSharePreflightBlock
+          error={screenShare.error}
+          requesting={screenShare.requesting}
+          ready={screenShare.ready}
+          onRequest={() => void screenShare.request()}
+        />
+      ) : null}
 
       <Checkbox
         className="rounded outline-none"
