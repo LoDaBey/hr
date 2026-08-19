@@ -9,6 +9,7 @@ import type {
   JobQuestion,
   JobQuestionType,
   JobStatus,
+  HardRequirementFailure,
   ProctoringSeverity,
   Recommendation,
   RecordingStatus,
@@ -358,6 +359,7 @@ export interface HrCandidateListRow {
   status: Status;
   screening_score: number | null;
   recommendation: Recommendation | null;
+  screening_pending: boolean;
   assessment_score: number | null;
   techtest_score: number | null;
   years_experience: number | null;
@@ -420,6 +422,7 @@ export interface HrCandidatesGetResult {
     parsed: unknown;
     original_name: string;
   } | null;
+  screening_pending: boolean;
   screening: {
     score: number | null;
     recommendation: Recommendation | null;
@@ -429,6 +432,7 @@ export interface HrCandidatesGetResult {
     missing_requirements: unknown;
     reasoning_summary: string | null;
     hr_decision: string | null;
+    hard_requirement_failures: HardRequirementFailure[];
   } | null;
   assessment: {
     id: string;

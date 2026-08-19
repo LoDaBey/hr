@@ -4,7 +4,9 @@ import { Alert, Badge, Group, List, SimpleGrid, Stack, Text } from '@mantine/cor
 import { stringList } from '@/lib/display';
 import { HR_DECISION, RECOMMENDATION, labelOf } from '@/lib/labels';
 import { palette } from '@/theme';
-import type { Recommendation } from '@/types/domain';
+import type { HardRequirementFailure, Recommendation } from '@/types/domain';
+import { HardRequirementFailuresPanel } from './HardRequirementFailuresPanel';
+import { ScreeningInProgressPanel } from './ScreeningInProgressPanel';
 
 type ScreeningData = {
   score: number | null;
@@ -15,6 +17,7 @@ type ScreeningData = {
   missing_requirements: unknown;
   reasoning_summary: string | null;
   hr_decision: string | null;
+  hard_requirement_failures?: HardRequirementFailure[];
 };
 
 function BulletList({
@@ -48,7 +51,17 @@ function BulletList({
   );
 }
 
-export function ScreeningResultSection({ screening }: { screening: ScreeningData | null }) {
+export function ScreeningResultSection({
+  screening,
+  screeningPending = false,
+}: {
+  screening: ScreeningData | null;
+  screeningPending?: boolean;
+}) {
+  if (screeningPending && !screening) {
+    return <ScreeningInProgressPanel />;
+  }
+
   if (!screening) {
     return (
       <Alert color="ink" variant="light">
@@ -60,6 +73,7 @@ export function ScreeningResultSection({ screening }: { screening: ScreeningData
   const strengths = stringList(screening.strengths);
   const weaknesses = stringList(screening.weaknesses);
   const missing = stringList(screening.missing_requirements);
+  const hardFailures = screening.hard_requirement_failures ?? [];
   const recommendationLabel = labelOf(
     RECOMMENDATION,
     screening.recommendation as Recommendation | null,
@@ -67,6 +81,8 @@ export function ScreeningResultSection({ screening }: { screening: ScreeningData
 
   return (
     <Stack gap="lg">
+      <HardRequirementFailuresPanel failures={hardFailures} />
+
       <Group align="flex-end" gap="lg" wrap="wrap">
         <Group gap="sm" align="flex-end">
           <Text

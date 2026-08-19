@@ -66,8 +66,9 @@ const STEPS = [
     description: 'What every applicant fills in. These answers feed screening.',
   },
   {
-    label: 'Screening rules',
-    description: 'How applicants are scored automatically. You always make the final call.',
+    label: 'AI filtering',
+    description:
+      'How the AI scores each application against this role. You always make the final call.',
   },
   {
     label: 'Technical assessment',
@@ -134,12 +135,14 @@ function extractDemographicAndHard(value: unknown): {
       continue;
     }
     if (row.key === 'military_status') {
-      demographic.militaryAccepted = Array.isArray(row.value)
-        ? row.value.map(String)
-        : row.value == null || row.value === ''
-          ? []
-          : [String(row.value)];
-      demographic.militaryOnFail = row.on_fail ?? DEFAULT_HARD_FAIL;
+      if (row.op === 'in' || row.op === '==') {
+        demographic.militaryAccepted = Array.isArray(row.value)
+          ? row.value.map(String)
+          : row.value == null || row.value === ''
+            ? []
+            : [String(row.value)];
+        demographic.militaryOnFail = row.on_fail ?? DEFAULT_HARD_FAIL;
+      }
       continue;
     }
     hardRows.push({
@@ -220,7 +223,7 @@ function buildDemographicHard(
     out.push({
       key: 'military_status',
       label: 'Military status',
-      op: '==',
+      op: 'in',
       value: demographic.militaryAccepted,
       on_fail: demographic.militaryOnFail,
     });
@@ -408,7 +411,6 @@ export function JobWizard({
       work_mode: values.work_mode,
       min_experience_years: Number(values.min_experience_years) || 0,
       required_skills: values.required_skills,
-      preferred_skills: values.preferred_skills,
       salary_min: optionalNumber(values.salary_min),
       salary_max: optionalNumber(values.salary_max),
       currency: values.currency || null,
@@ -694,12 +696,6 @@ export function JobWizard({
         ))}
       </Stepper>
 
-      {isLive && active === LAST_STEP ? null : (
-        <Text size="sm" c="dimmed">
-          {STEPS[active]?.description}
-        </Text>
-      )}
-
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={active}
@@ -749,7 +745,7 @@ export function JobWizard({
 
           {active === 2 ? (
             questionsReady ? (
-              <EditorSection title="Screening rules" description={STEPS[2].description}>
+              <EditorSection title="AI filtering" description={STEPS[2].description}>
                 <ScreeningScoreSection
                   form={form}
                   niceToHaveTotal={niceToHaveTotal}
