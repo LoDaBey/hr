@@ -2,6 +2,7 @@ import 'server-only';
 import { randomBytes } from 'crypto';
 import type { PoolClient, QueryResultRow } from 'pg';
 import { tx } from '@/lib/db';
+import { dispatchCommunicationById } from '@/lib/email-dispatch';
 import { datetime } from '@/lib/format';
 import { hashToken } from '@/lib/tokens';
 import type { HrInviteResult } from '@/types/api';
@@ -150,14 +151,25 @@ export async function issueInvite(
       return { ok: false, reason: 'no_assessment' };
     }
 
-    await client.query(
+    const cancelledSittings = await client.query<{ id: string }>(
       `UPDATE HRSYSTEM_candidate_assessments
        SET status = 'CANCELLED', updated_at = now()
        WHERE application_id = $1
          AND kind = $2
-         AND status IN ('INVITED', 'STARTED')`,
+         AND status IN ('INVITED', 'STARTED')
+       RETURNING id`,
       [applicationId, config.assessmentKind],
     );
+
+    for (const previous of cancelledSittings.rows) {
+      await client.query(
+        `UPDATE HRSYSTEM_communications
+         SET status = 'CANCELLED'
+         WHERE dedupe_key = $1
+           AND status = 'PENDING'`,
+        [`${applicationId}:${config.templateKey}:${previous.id}`],
+      );
+    }
 
     const sitting = config.withRecordingStatus
       ? await oneTx<{ id: string; invite_deadline: string; duration_minutes: number }>(
@@ -295,13 +307,14 @@ export async function issueInvite(
       [config.linkVar]: link,
     };
 
-    await client.query(
+    const commInsert = await client.query<{ id: string }>(
       `INSERT INTO HRSYSTEM_communications (
          candidate_id, application_id, template_key, to_email,
          variables, dedupe_key, scheduled_for
        )
        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::timestamptz)
-       ON CONFLICT (dedupe_key) DO NOTHING`,
+       ON CONFLICT (dedupe_key) DO NOTHING
+       RETURNING id`,
       [
         application.candidate_id,
         applicationId,
@@ -312,6 +325,14 @@ export async function issueInvite(
         sendAtIso,
       ],
     );
+
+    if (commInsert.rowCount === 0) {
+      console.error('[issueInvite] communication not enqueued — dedupe_key conflict', {
+        applicationId,
+        kind: options.kind,
+        dedupe_key: `${applicationId}:${config.templateKey}:${sitting.id}`,
+      });
+    }
 
     return {
       ok: true,
@@ -389,6 +410,8 @@ export async function sendInviteNow(
         JSON.stringify({ candidate_assessment_id: sitting.id, communication_id: updated.id }),
       ],
     );
+
+    await dispatchCommunicationById(updated.id);
 
     return { ok: true };
   });

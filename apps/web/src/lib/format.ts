@@ -1,4 +1,7 @@
 import dayjs from 'dayjs';
+import relativeTimePlugin from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTimePlugin);
 
 export function date(value: string | Date | null | undefined): string {
   if (value == null || value === '') return '—';
@@ -10,6 +13,44 @@ export function datetime(value: string | Date | null | undefined): string {
   if (value == null || value === '') return '—';
   const parsed = dayjs(value);
   return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm') : '—';
+}
+
+export function time(value: string | Date | null | undefined): string {
+  if (value == null || value === '') return '—';
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('HH:mm') : '—';
+}
+
+export function relativeTime(value: string | Date | null | undefined): string {
+  if (value == null || value === '') return '—';
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.fromNow() : '—';
+}
+
+export function formatDayHeading(day: string): string {
+  if (day === 'Unknown') return 'Unknown date';
+  const parsed = dayjs(day);
+  return parsed.isValid() ? parsed.format('dddd, D MMMM YYYY') : day;
+}
+
+export function groupByDay<T extends { created_at: string }>(
+  records: T[],
+): Array<{ day: string; items: T[] }> {
+  const sorted = [...records].sort(
+    (a, b) => dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf(),
+  );
+  const groups = new Map<string, T[]>();
+  for (const item of sorted) {
+    const day = dayjs(item.created_at).isValid()
+      ? dayjs(item.created_at).format('YYYY-MM-DD')
+      : 'Unknown';
+    const bucket = groups.get(day) ?? [];
+    bucket.push(item);
+    groups.set(day, bucket);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([day, items]) => ({ day, items }));
 }
 
 const CURRENCY_ISO: Record<string, string> = {

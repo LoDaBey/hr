@@ -3,6 +3,7 @@ import { runAutomation } from '@/lib/automation';
 import { renderTemplate } from '@/lib/email-render';
 import {
   claimPendingCommunications,
+  findCommunicationById,
   markCommunicationFailed,
   markCommunicationSent,
 } from '@/lib/repos/communications';
@@ -78,6 +79,18 @@ async function dispatchOne(row: Communication): Promise<'sent' | 'failed'> {
     }
     return 'failed';
   }
+}
+
+/** Send one queued communication immediately (after scheduled_for is due). */
+export async function dispatchCommunicationById(
+  id: string,
+): Promise<'sent' | 'failed' | 'not_found' | 'not_pending'> {
+  const row = await findCommunicationById(id);
+  if (!row) return 'not_found';
+  if (row.status === 'SENT') return 'sent';
+  if (row.status !== 'PENDING') return 'not_pending';
+  const outcome = await dispatchOne(row);
+  return outcome;
 }
 
 /** Claim and send a batch of PENDING communications. Never throws on a single bad row. */

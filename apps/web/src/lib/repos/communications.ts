@@ -28,6 +28,11 @@ export async function enqueueCommunication(input: NewCommunication): Promise<Com
   );
   if (inserted) return inserted;
 
+  console.warn('[enqueueCommunication] dedupe_key conflict — returning existing row', {
+    dedupe_key: input.dedupe_key,
+    template_key: input.template_key,
+  });
+
   const existing = await one<Communication>(
     `SELECT * FROM HRSYSTEM_communications WHERE dedupe_key = $1`,
     [input.dedupe_key],

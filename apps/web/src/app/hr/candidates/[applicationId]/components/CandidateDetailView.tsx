@@ -395,7 +395,11 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
 
         <Grid.Col span={{ base: 12, lg: 5 }}>
           <Section title="Emails">
-            <CandidateEmailsSection communications={communications} onChanged={refresh} />
+            {communications.length === 0 ? (
+              <Text c="dimmed">No emails queued for this candidate yet.</Text>
+            ) : (
+              <CandidateEmailsSection communications={communications} onChanged={refresh} />
+            )}
           </Section>
         </Grid.Col>
 
