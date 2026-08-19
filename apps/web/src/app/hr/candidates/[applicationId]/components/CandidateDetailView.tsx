@@ -18,6 +18,7 @@ import { TechTestReview } from '@/components/hr/TechTestReview';
 import { useRouter } from 'next/navigation';
 import { CandidateRowActions } from '../../components/CandidateRowActions';
 import { ApplicationAnswersSection } from './ApplicationAnswersSection';
+import { CandidateEmailsSection } from './CandidateEmailsSection';
 import { CandidateTimelineSection } from './CandidateTimelineSection';
 import { FinalDecisionBar } from './FinalDecisionBar';
 import { InterviewCompleteForm } from './InterviewCompleteForm';
@@ -320,20 +321,10 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
       ) : null}
 
       <Section title="Emails">
-        {communications.length === 0 ? (
-          <Text c="dimmed">No emails queued for this candidate yet.</Text>
-        ) : (
-          communications.map((c) => (
-            <Group key={c.id} justify="space-between">
-              <div>
-                <Text fw={500}>{c.template_key}</Text>
-                <Text size="sm" c="dimmed">
-                  {c.to_email} · {datetime(c.created_at)}
-                </Text>
-              </div>
-            </Group>
-          ))
-        )}
+        <CandidateEmailsSection
+          communications={communications}
+          onChanged={() => void mutate()}
+        />
       </Section>
 
       <Section title="Timeline">

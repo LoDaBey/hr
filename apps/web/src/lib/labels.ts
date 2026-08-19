@@ -212,6 +212,8 @@ export function timelineEventTitle(event: TimelineEventInput): string {
       if (decision === 'ADDITIONAL_INTERVIEW') return 'HR requested an additional interview';
       if (decision === 'WITHDRAW') return 'HR marked this candidate as withdrawn';
       return 'HR decision recorded';
+    case 'EMAIL_SEND_NOW':
+      return 'Email send requested immediately';
     case 'ASSESSMENT_INVITED':
       return 'Assessment invitation sent';
     case 'ASSESSMENT_AUTO_SCHEDULED':
