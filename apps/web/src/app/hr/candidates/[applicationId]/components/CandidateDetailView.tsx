@@ -356,11 +356,14 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
             <AssessmentReview
               review={{
                 id: assessment.id,
+                status: assessment.status,
                 late: assessment.late,
                 ai_score: assessment.ai_score,
                 ai_max_score: assessment.ai_max_score,
                 submitted_at: assessment.submitted_at,
                 overall_feedback: assessment.review.overall_feedback,
+                has_overall_evaluation: assessment.review.has_overall_evaluation,
+                grading_error: assessment.review.grading_error,
                 questions: assessment.review.questions,
               }}
             />
@@ -372,11 +375,14 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
             <TechTestReview
               review={{
                 id: techtest.id,
+                status: techtest.status,
                 late: techtest.late,
                 ai_score: techtest.ai_score,
                 ai_max_score: techtest.ai_max_score,
                 submitted_at: techtest.submitted_at,
                 overall_feedback: techtest.review.overall_feedback,
+                has_overall_evaluation: techtest.review.has_overall_evaluation,
+                grading_error: techtest.review.grading_error,
                 questions: techtest.review.questions,
                 recording_status: techtest.recording_status,
                 recording: techtest.review.recording,

@@ -27,6 +27,24 @@ export async function insertWorkflowError(input: {
   );
 }
 
+export async function findGradingErrorForSitting(
+  applicationId: string,
+  sittingId: string,
+): Promise<string | null> {
+  const row = await one<{ error_message: string | null }>(
+    `SELECT error_message
+     FROM HRSYSTEM_workflow_errors
+     WHERE application_id = $1
+       AND action = 'assessment.grade'
+       AND resolved = false
+       AND input_ref->>'candidate_assessment_id' = $2
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [applicationId, sittingId],
+  );
+  return row?.error_message ?? null;
+}
+
 export async function listWorkflowErrors(opts: {
   resolved: boolean;
   limit: number;

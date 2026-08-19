@@ -1,6 +1,7 @@
 import 'server-only';
 import { signedDeliveryUrl } from '@/lib/cloudinary';
 import { one, query, tx } from '@/lib/db';
+import { findGradingErrorForSitting } from '@/lib/repos/workflow-errors';
 import type {
   HrApplicationAnswers,
   HrCandidateListRow,
@@ -353,7 +354,7 @@ export async function getHrCandidateDetail(
       application.stage === 'TECH_SHORTLISTED' ||
       application.stage === 'TECH_REJECTED'
     ) {
-      const [questions, answerRows, evalRows] = await Promise.all([
+      const [questions, answerRows, evalRows, gradingError] = await Promise.all([
         query<{
           id: string;
           order_index: number;
@@ -383,13 +384,16 @@ export async function getHrCandidateDetail(
           technical_errors: unknown;
           feedback: string | null;
           confidence: number | null;
+          raw_response: unknown;
         }>(
           `SELECT question_id, is_overall, score, max_score,
-                  correct_concepts, missing_concepts, technical_errors, feedback, confidence
+                  correct_concepts, missing_concepts, technical_errors, feedback, confidence,
+                  raw_response
            FROM HRSYSTEM_assessment_evaluations
            WHERE candidate_assessment_id = $1`,
           [sitting.id],
         ),
+        findGradingErrorForSitting(application.id, sitting.id),
       ]);
 
       const answersByQ = new Map(answerRows.map((r) => [r.question_id, r.answer]));
@@ -397,9 +401,17 @@ export async function getHrCandidateDetail(
         evalRows.filter((r) => !r.is_overall && r.question_id).map((r) => [r.question_id!, r]),
       );
       const overall = evalRows.find((r) => r.is_overall);
+      const overallRaw =
+        overall?.raw_response && typeof overall.raw_response === 'object'
+          ? (overall.raw_response as { grading_failed?: boolean })
+          : null;
+      const gradingFailed = overallRaw?.grading_failed === true;
 
       review = {
         overall_feedback: overall?.feedback ?? null,
+        has_overall_evaluation:
+          Boolean(overall) && !gradingFailed && overall?.score != null,
+        grading_error: gradingError,
         questions: questions.map((q) => {
           const ev = evalByQ.get(q.id);
           return {
@@ -479,7 +491,8 @@ export async function getHrCandidateDetail(
         application.stage === 'SECOND_FINAL_INTERVIEW';
 
       if (showReview) {
-        const [questions, answerRows, evalRows, eventRows, recording] = await Promise.all([
+        const [questions, answerRows, evalRows, eventRows, recording, gradingError] =
+          await Promise.all([
           query<{
             id: string;
             order_index: number;
@@ -545,6 +558,7 @@ export async function getHrCandidateDetail(
              LIMIT 1`,
             [sitting.id],
           ),
+          findGradingErrorForSitting(application.id, sitting.id),
         ]);
 
         const answersByQ = new Map(answerRows.map((r) => [r.question_id, r.answer]));
@@ -555,10 +569,12 @@ export async function getHrCandidateDetail(
         const raw =
           overall?.raw_response && typeof overall.raw_response === 'object'
             ? (overall.raw_response as {
+                grading_failed?: boolean;
                 proctoring_flag?: 'CLEAN' | 'MINOR_FLAGS' | 'REVIEW_RECORDING';
                 proctoring_summary?: string;
               })
             : null;
+        const gradingFailed = raw?.grading_failed === true;
 
         let recordingPayload: NonNullable<
           NonNullable<HrCandidatesGetResult['techtest']>['review']
@@ -581,6 +597,9 @@ export async function getHrCandidateDetail(
 
         review = {
           overall_feedback: overall?.feedback ?? null,
+          has_overall_evaluation:
+            Boolean(overall) && !gradingFailed && overall?.score != null,
+          grading_error: gradingError,
           proctoring_flag: raw?.proctoring_flag ?? null,
           proctoring_summary: raw?.proctoring_summary ?? null,
           recording: recordingPayload,

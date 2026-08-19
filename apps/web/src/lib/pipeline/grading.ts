@@ -49,6 +49,49 @@ type PerQuestionEval = {
   raw_response: unknown;
 };
 
+export type GradeOptions = {
+  /** When set, trust the caller and skip the SUBMITTED status re-read guard. */
+  expectedStatus?: string;
+};
+
+async function recordGradingFailure(
+  sitting: SittingRow | null,
+  sittingId: string,
+  node: string,
+  reason: string,
+  feedback: string,
+): Promise<void> {
+  await insertWorkflowError({
+    action: 'assessment.grade',
+    node,
+    error_message: reason,
+    application_id: sitting?.application_id ?? null,
+    candidate_id: sitting?.candidate_id ?? null,
+    input_ref: { candidate_assessment_id: sittingId, reason },
+  });
+
+  if (!sitting) return;
+
+  await tx(async (client) => {
+    await client.query(
+      `DELETE FROM HRSYSTEM_assessment_evaluations WHERE candidate_assessment_id = $1`,
+      [sittingId],
+    );
+    await client.query(
+      `INSERT INTO HRSYSTEM_assessment_evaluations (
+         candidate_assessment_id, question_id, is_overall,
+         score, max_score, correct_concepts, missing_concepts, technical_errors,
+         feedback, confidence, model, raw_response
+       ) VALUES (
+         $1, NULL, true,
+         NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+         $2, NULL, NULL, $3::jsonb
+       )`,
+      [sittingId, feedback, JSON.stringify({ grading_failed: true, reason })],
+    );
+  });
+}
+
 function answerText(answer: unknown): string {
   if (answer == null) return '';
   if (typeof answer === 'string') return answer.trim();
@@ -148,7 +191,10 @@ function mapAiResult(
   };
 }
 
-export async function gradeAssessment(sittingId: string): Promise<void> {
+export async function gradeAssessment(
+  sittingId: string,
+  options?: GradeOptions,
+): Promise<void> {
   const sitting = await one<SittingRow>(
     `SELECT ca.id, ca.application_id, ca.assessment_id, ca.kind, ca.status,
             a.candidate_id, a.job_id, a.stage
@@ -158,11 +204,23 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
     [sittingId],
   );
   if (!sitting) {
-    console.error('[grading] sitting not found', sittingId);
+    await insertWorkflowError({
+      action: 'assessment.grade',
+      node: 'gradeAssessment',
+      error_message: 'Sitting not found',
+      input_ref: { candidate_assessment_id: sittingId, reason: 'sitting_not_found' },
+    });
     return;
   }
-  if (sitting.status !== 'SUBMITTED') {
-    console.info('[grading] skip — sitting not SUBMITTED', sittingId, sitting.status);
+
+  if (!options?.expectedStatus && sitting.status !== 'SUBMITTED') {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'gradeAssessment',
+      `Status not gradeable: ${sitting.status}`,
+      `Grading skipped — sitting status is ${sitting.status}, expected SUBMITTED`,
+    );
     return;
   }
 
@@ -174,10 +232,33 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
     [sitting.assessment_id],
   );
 
+  if (questions.length === 0) {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'gradeAssessment',
+      'No questions configured on the assessment',
+      'Grading failed — this assessment has no questions configured',
+    );
+    return;
+  }
+
   const answerRows = await query<AnswerRow>(
     `SELECT question_id, answer FROM HRSYSTEM_assessment_answers WHERE candidate_assessment_id = $1`,
     [sittingId],
   );
+
+  if (answerRows.length === 0) {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'gradeAssessment',
+      'Questions exist but no answers were stored',
+      'Grading failed — no answers were stored for this submission',
+    );
+    return;
+  }
+
   const answersByQ = new Map(answerRows.map((r) => [r.question_id, r.answer]));
 
   const mcqEvals: PerQuestionEval[] = [];
@@ -200,7 +281,19 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
     openForAi.push({ question: q, answer });
   }
 
-  let aiFailed = false;
+  const openQuestions = questions.filter((q) => q.type !== 'MCQ');
+  const answeredOpenInDb = openQuestions.filter((q) => isAnswered(answersByQ.get(q.id)));
+  if (openQuestions.length > 0 && answeredOpenInDb.length > 0 && openForAi.length === 0) {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'gradeAssessment',
+      'Open questions exist but openForAi came out empty',
+      'Grading failed — answers were stored but could not be prepared for AI grading',
+    );
+    return;
+  }
+
   const aiByQuestion = new Map<string, AssessmentGradeResultItem>();
 
   if (openForAi.length > 0) {
@@ -216,50 +309,42 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
     });
 
     if (!result.ok) {
-      aiFailed = true;
-      console.error('[grading] assessment.grade failed', result.error.message);
-      await insertWorkflowError({
-        action: 'assessment.grade',
-        node: 'gradeAssessment',
-        error_message: result.error.message,
-        application_id: sitting.application_id,
-        candidate_id: sitting.candidate_id,
-      });
-    } else if (!result.data?.results) {
-      aiFailed = true;
-      console.error('[grading] assessment.grade failed', result);
-    } else {
-      for (const item of result.data.results) {
-        aiByQuestion.set(item.question_id, item);
-      }
+      await recordGradingFailure(
+        sitting,
+        sittingId,
+        'gradeAssessment',
+        result.error.message || 'assessment.grade returned ok: false',
+        `Grading failed — AI grading error: ${result.error.message || 'unknown'}`,
+      );
+      return;
+    }
+
+    if (!result.data?.results) {
+      await recordGradingFailure(
+        sitting,
+        sittingId,
+        'gradeAssessment',
+        'assessment.grade returned no results',
+        'Grading failed — AI grading returned no results',
+      );
+      return;
+    }
+
+    for (const item of result.data.results) {
+      aiByQuestion.set(item.question_id, item);
     }
   }
 
-  const openEvals: PerQuestionEval[] = openForAi.map(({ question }) => {
-    if (aiFailed) {
-      return {
-        question_id: question.id,
-        score: 0,
-        max_score: Number(question.max_score) || 0,
-        correct_concepts: [],
-        missing_concepts: [],
-        technical_errors: [],
-        feedback: 'AI grading unavailable — please review manually',
-        confidence: null,
-        raw_response: null,
-      };
-    }
-    return mapAiResult(question, aiByQuestion.get(question.id));
-  });
+  const openEvals: PerQuestionEval[] = openForAi.map(({ question }) =>
+    mapAiResult(question, aiByQuestion.get(question.id)),
+  );
 
   const allEvals = [...mcqEvals, ...unansweredOpen, ...openEvals];
   const sumScore = allEvals.reduce((s, e) => s + e.score, 0);
   const sumMax = allEvals.reduce((s, e) => s + e.max_score, 0);
   const totalPct = sumMax > 0 ? Math.round((sumScore / sumMax) * 1000) / 10 : 0;
 
-  const overallFeedback = aiFailed
-    ? 'AI grading unavailable — please review manually'
-    : `Scored ${sumScore} / ${sumMax} (${totalPct}%)`;
+  const overallFeedback = `Scored ${sumScore} / ${sumMax} (${totalPct}%)`;
 
   await tx(async (client) => {
     await client.query(`DELETE FROM HRSYSTEM_assessment_evaluations WHERE candidate_assessment_id = $1`, [
@@ -287,7 +372,7 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
           JSON.stringify(ev.technical_errors),
           ev.feedback,
           ev.confidence,
-          aiFailed ? null : 'assessment.grade',
+          'assessment.grade',
           ev.raw_response == null ? null : JSON.stringify(ev.raw_response),
         ],
       );
@@ -308,9 +393,9 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
         sumScore,
         sumMax,
         overallFeedback,
-        aiFailed ? null : 1,
-        aiFailed ? null : 'assessment.grade',
-        JSON.stringify({ total_pct: totalPct, ai_failed: aiFailed }),
+        1,
+        'assessment.grade',
+        JSON.stringify({ total_pct: totalPct, ai_failed: false }),
       ],
     );
 
@@ -347,11 +432,20 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
         JSON.stringify({
           candidate_assessment_id: sittingId,
           ai_score: Math.round(totalPct),
-          ai_failed: aiFailed,
+          ai_failed: false,
         }),
       ],
     );
   });
+
+  const overallExists = await one<{ id: string }>(
+    `SELECT id FROM HRSYSTEM_assessment_evaluations
+     WHERE candidate_assessment_id = $1 AND is_overall = true
+       AND (raw_response IS NULL OR raw_response->>'grading_failed' IS DISTINCT FROM 'true')
+     LIMIT 1`,
+    [sittingId],
+  );
+  if (!overallExists) return;
 
   const assessmentConfig = await one<{ pass_score: number }>(
     `SELECT pass_score FROM HRSYSTEM_assessments WHERE id = $1`,
@@ -364,12 +458,9 @@ export async function gradeAssessment(sittingId: string): Promise<void> {
   const avgConfidence =
     confidences.length > 0
       ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
-      : aiFailed
-        ? 0
-        : 1;
+      : 1;
 
   if (
-    !aiFailed &&
     assessmentConfig &&
     totalPct >= assessmentConfig.pass_score &&
     avgConfidence >= Number(settings.auto_shortlist_min_confidence)
@@ -484,7 +575,10 @@ function proctoringFlag(rows: ProctorAgg[]): {
 }
 
 /** Reuses the T-23 grader; proctoring summary is descriptive only and never changes the score. */
-export async function evaluateTechTest(sittingId: string): Promise<void> {
+export async function evaluateTechTest(
+  sittingId: string,
+  options?: GradeOptions,
+): Promise<void> {
   const sitting = await one<SittingRow>(
     `SELECT ca.id, ca.application_id, ca.assessment_id, ca.kind, ca.status,
             a.candidate_id, a.job_id, a.stage
@@ -494,15 +588,32 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
     [sittingId],
   );
   if (!sitting) {
-    console.error('[evaluateTechTest] sitting not found', sittingId);
+    await insertWorkflowError({
+      action: 'assessment.grade',
+      node: 'evaluateTechTest',
+      error_message: 'Sitting not found',
+      input_ref: { candidate_assessment_id: sittingId, reason: 'sitting_not_found' },
+    });
     return;
   }
   if (sitting.kind !== 'TECH_TEST') {
-    console.error('[evaluateTechTest] wrong kind', sitting.kind);
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'evaluateTechTest',
+      `Wrong sitting kind: ${sitting.kind}`,
+      `Grading skipped — expected TECH_TEST sitting`,
+    );
     return;
   }
-  if (sitting.status !== 'SUBMITTED') {
-    console.info('[evaluateTechTest] skip — not SUBMITTED', sittingId, sitting.status);
+  if (!options?.expectedStatus && sitting.status !== 'SUBMITTED') {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'evaluateTechTest',
+      `Status not gradeable: ${sitting.status}`,
+      `Grading skipped — sitting status is ${sitting.status}, expected SUBMITTED`,
+    );
     return;
   }
 
@@ -514,10 +625,33 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
     [sitting.assessment_id],
   );
 
+  if (questions.length === 0) {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'evaluateTechTest',
+      'No questions configured on the assessment',
+      'Grading failed — this assessment has no questions configured',
+    );
+    return;
+  }
+
   const answerRows = await query<AnswerRow>(
     `SELECT question_id, answer FROM HRSYSTEM_assessment_answers WHERE candidate_assessment_id = $1`,
     [sittingId],
   );
+
+  if (answerRows.length === 0) {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'evaluateTechTest',
+      'Questions exist but no answers were stored',
+      'Grading failed — no answers were stored for this submission',
+    );
+    return;
+  }
+
   const answersByQ = new Map(answerRows.map((r) => [r.question_id, r.answer]));
 
   const mcqEvals: PerQuestionEval[] = [];
@@ -537,7 +671,19 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
     openForAi.push({ question: q, answer });
   }
 
-  let aiFailed = false;
+  const openQuestions = questions.filter((q) => q.type !== 'MCQ');
+  const answeredOpenInDb = openQuestions.filter((q) => isAnswered(answersByQ.get(q.id)));
+  if (openQuestions.length > 0 && answeredOpenInDb.length > 0 && openForAi.length === 0) {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'evaluateTechTest',
+      'Open questions exist but openForAi came out empty',
+      'Grading failed — answers were stored but could not be prepared for AI grading',
+    );
+    return;
+  }
+
   const aiByQuestion = new Map<string, AssessmentGradeResultItem>();
 
   if (openForAi.length > 0) {
@@ -553,41 +699,35 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
     });
 
     if (!result.ok) {
-      aiFailed = true;
-      console.error('[evaluateTechTest] assessment.grade failed', result.error.message);
-      await insertWorkflowError({
-        action: 'assessment.grade',
-        node: 'evaluateTechTest',
-        error_message: result.error.message,
-        application_id: sitting.application_id,
-        candidate_id: sitting.candidate_id,
-      });
-    } else if (!result.data?.results) {
-      aiFailed = true;
-      console.error('[evaluateTechTest] assessment.grade failed', result);
-    } else {
-      for (const item of result.data.results) {
-        aiByQuestion.set(item.question_id, item);
-      }
+      await recordGradingFailure(
+        sitting,
+        sittingId,
+        'evaluateTechTest',
+        result.error.message || 'assessment.grade returned ok: false',
+        `Grading failed — AI grading error: ${result.error.message || 'unknown'}`,
+      );
+      return;
+    }
+
+    if (!result.data?.results) {
+      await recordGradingFailure(
+        sitting,
+        sittingId,
+        'evaluateTechTest',
+        'assessment.grade returned no results',
+        'Grading failed — AI grading returned no results',
+      );
+      return;
+    }
+
+    for (const item of result.data.results) {
+      aiByQuestion.set(item.question_id, item);
     }
   }
 
-  const openEvals: PerQuestionEval[] = openForAi.map(({ question }) => {
-    if (aiFailed) {
-      return {
-        question_id: question.id,
-        score: 0,
-        max_score: Number(question.max_score) || 0,
-        correct_concepts: [],
-        missing_concepts: [],
-        technical_errors: [],
-        feedback: 'AI grading unavailable — please review manually',
-        confidence: null,
-        raw_response: null,
-      };
-    }
-    return mapAiResult(question, aiByQuestion.get(question.id));
-  });
+  const openEvals: PerQuestionEval[] = openForAi.map(({ question }) =>
+    mapAiResult(question, aiByQuestion.get(question.id)),
+  );
 
   const allEvals = [...mcqEvals, ...unansweredOpen, ...openEvals];
   const sumScore = allEvals.reduce((s, e) => s + e.score, 0);
@@ -604,9 +744,7 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
   );
   const proctor = proctoringFlag(proctorRows);
 
-  const overallFeedback = aiFailed
-    ? 'AI grading unavailable — please review manually'
-    : `Scored ${sumScore} / ${sumMax} (${totalPct}%). ${proctor.summary}`;
+  const overallFeedback = `Scored ${sumScore} / ${sumMax} (${totalPct}%). ${proctor.summary}`;
 
   await tx(async (client) => {
     await client.query(`DELETE FROM HRSYSTEM_assessment_evaluations WHERE candidate_assessment_id = $1`, [
@@ -634,7 +772,7 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
           JSON.stringify(ev.technical_errors),
           ev.feedback,
           ev.confidence,
-          aiFailed ? null : 'assessment.grade',
+          'assessment.grade',
           ev.raw_response == null ? null : JSON.stringify(ev.raw_response),
         ],
       );
@@ -655,11 +793,11 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
         sumScore,
         sumMax,
         overallFeedback,
-        aiFailed ? null : 1,
-        aiFailed ? null : 'assessment.grade',
+        1,
+        'assessment.grade',
         JSON.stringify({
           total_pct: totalPct,
-          ai_failed: aiFailed,
+          ai_failed: false,
           proctoring_flag: proctor.flag,
           proctoring_summary: proctor.summary,
           critical_timestamps: proctor.critical_timestamps,
@@ -700,9 +838,8 @@ export async function evaluateTechTest(sittingId: string): Promise<void> {
         JSON.stringify({
           candidate_assessment_id: sittingId,
           ai_score: Math.round(totalPct),
-          ai_failed: aiFailed,
+          ai_failed: false,
           proctoring_flag: proctor.flag,
-          // Descriptive only — never influences the score.
           proctoring_summary: proctor.summary,
         }),
       ],
