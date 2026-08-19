@@ -143,6 +143,7 @@ export function AssessmentQuestionInput({
       className="rounded outline-none"
       label="Your answer"
       aria-label="Written answer"
+      autosize
       minRows={6}
       value={answerAsString(value)}
       onChange={(e) => onChange({ text: e.currentTarget.value })}

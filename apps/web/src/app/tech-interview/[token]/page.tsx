@@ -507,10 +507,23 @@ export default function TechInterviewPage({
 
   if (phase === 'done') {
     return (
-      <TokenMessage
-        title="Thank you"
-        message="Your answers and recording were submitted. Our team will review your session."
-      />
+      <Stack
+        gap="md"
+        maw={480}
+        mx="auto"
+        py="xl"
+        px="md"
+        align="center"
+        style={{ minHeight: '60vh', background: palette.paper }}
+      >
+        <Title order={1} ta="center" style={{ color: palette.ink }}>
+          You&apos;re done
+        </Title>
+        <Text ta="center" c="dimmed">
+          Your answers and recording were submitted successfully. You can close this tab — our
+          team will review your session.
+        </Text>
+      </Stack>
     );
   }
 
@@ -523,13 +536,13 @@ export default function TechInterviewPage({
         py="xl"
         px="md"
         align="center"
-        style={{ minHeight: '60vh', background: palette.paper }}
+        style={{ minHeight: '100vh', background: palette.paper }}
       >
         <Title order={1} ta="center" style={{ color: palette.ink }}>
-          Thank you
+          Submitting…
         </Title>
         <Text ta="center" c="dimmed">
-          Your answers are saved. Uploading your recording…
+          Your answers are saved. Uploading your recording — please keep this tab open.
         </Text>
         {uploadProgress ? (
           <RecordingUploadProgress loaded={uploadProgress.loaded} total={uploadProgress.total} />
