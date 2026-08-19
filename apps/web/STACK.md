@@ -76,3 +76,15 @@ these rather than adding `document.addEventListener` by hand.
 - No test framework, no test files, no `test` script.
 - No MCP servers or connectors.
 - No Tailwind, no shadcn, no charts library, no ORM.
+
+## Standing rules for every ticket
+
+- **Never read Vercel logs or query the database to diagnose.** If something fails
+  silently, the fix is to make the app record the failure where it can be seen — a
+  `HRSYSTEM_workflow_errors` row and an honest state in the UI. Diagnosis that depends on
+  a log nobody can reach is not a fix.
+- **Never push to GitHub.** Commit locally when a ticket asks for it. Pushing is Khaled's
+  decision, always.
+- **Never leave a silent failure.** Every early return, caught error and skipped automation
+  writes an error row and surfaces something truthful on screen. "Awaiting", "failed" and a
+  genuine zero must never look the same.
