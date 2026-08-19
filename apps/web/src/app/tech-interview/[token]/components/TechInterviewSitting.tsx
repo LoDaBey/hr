@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Group,
+  Loader,
   Modal,
   Stack,
   Text,
@@ -33,6 +34,8 @@ export function TechInterviewSitting({
   data,
   start,
   stream,
+  recordingReady = true,
+  paused = false,
   onPasteDetected,
   onSubmitRequest,
   submitting,
@@ -41,6 +44,8 @@ export function TechInterviewSitting({
   data: CandidateAssessmentGetResult;
   start: CandidateAssessmentStartResult;
   stream: MediaStream | null;
+  recordingReady?: boolean;
+  paused?: boolean;
   onPasteDetected?: () => void;
   onSubmitRequest: (answers: Record<string, unknown>) => void | Promise<void>;
   submitting?: boolean;
@@ -58,6 +63,20 @@ export function TechInterviewSitting({
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const pausedAtRef = useRef<number | null>(null);
+  const pausedAccumRef = useRef(0);
+
+  useEffect(() => {
+    if (paused) {
+      if (pausedAtRef.current == null) pausedAtRef.current = Date.now();
+      return;
+    }
+    if (pausedAtRef.current != null) {
+      pausedAccumRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+  }, [paused]);
 
   useEffect(() => {
     answersRef.current = answers;
@@ -78,7 +97,11 @@ export function TechInterviewSitting({
     const clockOffset = new Date(start.server_time).getTime() - Date.now();
     const tick = () => {
       const expires = new Date(start.expires_at).getTime();
-      setRemainingMs(expires - (Date.now() + clockOffset));
+      let pauseMs = pausedAccumRef.current;
+      if (paused && pausedAtRef.current != null) {
+        pauseMs += Date.now() - pausedAtRef.current;
+      }
+      setRemainingMs(expires - (Date.now() + clockOffset) + pauseMs);
     };
     const id = window.setInterval(tick, 250);
     const raf = window.requestAnimationFrame(tick);
@@ -99,6 +122,7 @@ export function TechInterviewSitting({
         method: 'POST',
         body: { answers: payload },
       });
+      setSavedAt(Date.now());
     } catch {
       // Autosave must never interrupt the candidate.
     } finally {
@@ -114,10 +138,11 @@ export function TechInterviewSitting({
   }, [persist]);
 
   useEffect(() => {
+    if (paused) return;
     if (remainingMs != null && remainingMs <= 0) {
       void onSubmitRequest(answersRef.current);
     }
-  }, [onSubmitRequest, remainingMs]);
+  }, [onSubmitRequest, paused, remainingMs]);
 
   const questions = data.questions;
   const current = questions[index];
@@ -125,6 +150,19 @@ export function TechInterviewSitting({
     () => questions.filter((q) => !isAnswered(answers[q.id])),
     [answers, questions],
   );
+
+  if (!recordingReady) {
+    return (
+      <Group justify="center" py="xl" style={{ minHeight: '60vh', background: palette.paper }}>
+        <Stack align="center" gap="sm">
+          <Loader color="accent" aria-label="Starting recording" />
+          <Text size="sm" c="dimmed">
+            Starting recording…
+          </Text>
+        </Stack>
+      </Group>
+    );
+  }
 
   return (
     <Stack gap="md" maw={800} mx="auto" py="md" px="md" style={{ position: 'relative' }}>
@@ -243,7 +281,7 @@ export function TechInterviewSitting({
           Previous
         </MotionButton>
         <Text size="sm" c="dimmed">
-          {saving ? 'Saving…' : null}
+          {saving ? 'Saving…' : savedAt ? 'Saved' : null}
         </Text>
         {index < questions.length - 1 ? (
           <MotionButton

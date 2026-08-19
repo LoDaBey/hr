@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import useSWR from 'swr';
 import { RecordingUploadProgress } from './components/RecordingUploadProgress';
+import { SessionDeviceBlockOverlay } from './components/SessionDeviceBlockOverlay';
 import { TechInterviewPreflight } from './components/TechInterviewPreflight';
 import { TechInterviewSitting } from './components/TechInterviewSitting';
 import { MotionButton } from '@/components/MotionButton';
@@ -11,6 +12,11 @@ import { useProctoring } from '@/hooks/useProctoring';
 import { useRecorder } from '@/hooks/useRecorder';
 import { ApiError, api } from '@/lib/api';
 import { uploadChunkedToCloudinary } from '@/lib/cloudinary-client';
+import {
+  replaceStreamTracks,
+  streamMeetsRequirements,
+  type MediaRequirements,
+} from '@/lib/media-stream';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { palette } from '@/theme';
 import type {
@@ -76,6 +82,10 @@ export default function TechInterviewPage({
     null,
   );
   const [uploadResume, setUploadResume] = useState<UploadResume | null>(null);
+  const [deviceBlocked, setDeviceBlocked] = useState(false);
+  const [deviceBlockKind, setDeviceBlockKind] = useState<'camera' | 'mic' | null>(null);
+  const [restoringDevices, setRestoringDevices] = useState(false);
+  const [recordingReady, setRecordingReady] = useState(false);
 
   const { data, error, isLoading, mutate } = useSWR<CandidateAssessmentGetResult>(
     token ? `/api/techtest/${encodeURIComponent(token)}` : null,
@@ -83,10 +93,25 @@ export default function TechInterviewPage({
     { revalidateOnFocus: false, shouldRetryOnError: false },
   );
 
+  const mediaRequirements: MediaRequirements = {
+    camera: data?.requirements?.camera ?? true,
+    mic: data?.requirements?.mic ?? true,
+  };
+
   const { flushNow, takeUnflushed, onPasteDetected } = useProctoring({
     token,
-    enabled: phase === 'live',
+    enabled: phase === 'live' && recordingReady,
     stream: liveStream,
+    onDeviceCritical: (kind) => {
+      setDeviceBlockKind(kind);
+      setDeviceBlocked(true);
+    },
+    onDeviceRestored: () => {
+      if (liveStream && streamMeetsRequirements(liveStream, mediaRequirements)) {
+        setDeviceBlocked(false);
+        setDeviceBlockKind(null);
+      }
+    },
   });
 
   const cleanupMedia = useCallback(async () => {
@@ -282,11 +307,45 @@ export default function TechInterviewPage({
     }
   }, [finishRecordingUpload, runChunkedUpload, token, uploadResume]);
 
+  const handleResumeDevices = useCallback(async () => {
+    const stream = streamRef.current ?? liveStream;
+    if (!stream) return;
+    setRestoringDevices(true);
+    setStartError(null);
+    try {
+      await replaceStreamTracks(stream, mediaRequirements);
+      if (!streamMeetsRequirements(stream, mediaRequirements)) {
+        throw new Error('Camera or microphone is still not active.');
+      }
+      setLiveStream(stream);
+      setDeviceBlocked(false);
+      setDeviceBlockKind(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not restore devices';
+      setStartError(message);
+      toastError(message);
+    } finally {
+      setRestoringDevices(false);
+    }
+  }, [liveStream, mediaRequirements]);
+
   const handleStart = useCallback(
     async (stream: MediaStream | null) => {
       if (!token || !data) return;
+      const requirements: MediaRequirements = {
+        camera: data.requirements?.camera ?? true,
+        mic: data.requirements?.mic ?? true,
+      };
+      const needsMedia = requirements.camera || requirements.mic;
+      if (needsMedia && !streamMeetsRequirements(stream, requirements)) {
+        setStartError('Camera and microphone must be active before you can start.');
+        toastError('Camera and microphone must be active before you can start.');
+        return;
+      }
+
       setStarting(true);
       setStartError(null);
+      setRecordingReady(false);
 
       if (data.status === 'STARTED') {
         partNoRef.current = 2;
@@ -315,8 +374,12 @@ export default function TechInterviewPage({
         streamRef.current = stream;
         setLiveStream(stream);
         recordingStartedAt.current = new Date().toISOString();
+
         if (stream) {
           await startRecorder(stream);
+          setRecordingReady(true);
+        } else {
+          setRecordingReady(true);
         }
 
         const capMs = (data.assessment.duration_minutes + 2) * 60_000;
@@ -330,6 +393,7 @@ export default function TechInterviewPage({
         stream?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         setLiveStream(null);
+        setRecordingReady(false);
         if (document.fullscreenElement) {
           void document.exitFullscreen().catch(() => undefined);
         }
@@ -475,15 +539,30 @@ export default function TechInterviewPage({
           onStart={handleStart}
         />
       ) : (
-        <TechInterviewSitting
-          token={token}
-          data={data}
-          start={startResult}
-          stream={liveStream}
-          onPasteDetected={onPasteDetected}
-          onSubmitRequest={handleSubmit}
-          submitting={submitting}
-        />
+        <>
+          <TechInterviewSitting
+            token={token}
+            data={data}
+            start={startResult}
+            stream={liveStream}
+            recordingReady={recordingReady}
+            paused={deviceBlocked}
+            onPasteDetected={onPasteDetected}
+            onSubmitRequest={handleSubmit}
+            submitting={submitting}
+          />
+          {deviceBlocked ? (
+            <SessionDeviceBlockOverlay
+              message={
+                deviceBlockKind === 'mic'
+                  ? 'Restore your microphone to continue.'
+                  : 'Restore your camera to continue.'
+              }
+              restoring={restoringDevices}
+              onResume={() => void handleResumeDevices()}
+            />
+          ) : null}
+        </>
       )}
     </div>
   );

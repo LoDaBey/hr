@@ -19,6 +19,10 @@ type UseProctoringArgs = {
   token: string;
   enabled: boolean;
   stream: MediaStream | null;
+  /** Called when a required camera or microphone track ends or is muted. */
+  onDeviceCritical?: (kind: 'camera' | 'mic') => void;
+  /** Called when all required tracks are live again after a critical loss. */
+  onDeviceRestored?: () => void;
 };
 
 /**
@@ -26,12 +30,18 @@ type UseProctoringArgs = {
  * Failed flushes leave events in the queue for the next tick.
  * Session notices are shown via react-hot-toast.
  */
-export function useProctoring({ token, enabled, stream }: UseProctoringArgs) {
+export function useProctoring({
+  token,
+  enabled,
+  stream,
+  onDeviceCritical,
+  onDeviceRestored,
+}: UseProctoringArgs) {
   const queueRef = useRef<ProctoringEventInput[]>([]);
   const flushingRef = useRef(false);
   const wasFullscreenRef = useRef(false);
   const wasOnlineRef = useRef(true);
-  const prevVisibilityRef = useRef<string | null>(null);
+  const deviceCriticalRef = useRef(false);
   const visibility = useDocumentVisibility();
   const { fullscreen } = useFullscreenDocument();
   const network = useNetwork();
@@ -143,20 +153,42 @@ export function useProctoring({ token, enabled, stream }: UseProctoringArgs) {
     const onEnded = (track: MediaStreamTrack) => () => {
       if (track.kind === 'video') {
         enqueue('CAMERA_OFF', 'CRITICAL', { reason: 'ended' });
+        deviceCriticalRef.current = true;
+        onDeviceCritical?.('camera');
         showBanner('Camera turned off — please turn it back on.');
       } else if (track.kind === 'audio') {
         enqueue('MIC_OFF', 'CRITICAL', { reason: 'ended' });
+        deviceCriticalRef.current = true;
+        onDeviceCritical?.('mic');
         showBanner('Microphone turned off — please turn it back on.');
       }
     };
     const onMute = (track: MediaStreamTrack) => () => {
-      if (!track.muted) return;
+      if (!track.muted) {
+        if (deviceCriticalRef.current) {
+          deviceCriticalRef.current = false;
+          onDeviceRestored?.();
+          showBanner(null);
+        }
+        return;
+      }
       if (track.kind === 'video') {
         enqueue('CAMERA_OFF', 'CRITICAL', { reason: 'muted' });
+        deviceCriticalRef.current = true;
+        onDeviceCritical?.('camera');
         showBanner('Camera muted — please unmute it.');
       } else if (track.kind === 'audio') {
         enqueue('MIC_OFF', 'CRITICAL', { reason: 'muted' });
+        deviceCriticalRef.current = true;
+        onDeviceCritical?.('mic');
         showBanner('Microphone muted — please unmute it.');
+      }
+    };
+    const onUnmute = (track: MediaStreamTrack) => () => {
+      if (!track.muted && track.readyState === 'live' && track.enabled) {
+        deviceCriticalRef.current = false;
+        onDeviceRestored?.();
+        showBanner(null);
       }
     };
     const cleanups: Array<() => void> = [];
@@ -165,15 +197,17 @@ export function useProctoring({ token, enabled, stream }: UseProctoringArgs) {
       const mute = onMute(track);
       track.addEventListener('ended', ended);
       track.addEventListener('mute', mute);
+      track.addEventListener('unmute', onUnmute(track));
       cleanups.push(() => {
         track.removeEventListener('ended', ended);
         track.removeEventListener('mute', mute);
+        track.removeEventListener('unmute', onUnmute(track));
       });
     }
     return () => {
       for (const fn of cleanups) fn();
     };
-  }, [enabled, enqueue, showBanner, stream]);
+  }, [enabled, enqueue, onDeviceCritical, onDeviceRestored, showBanner, stream]);
 
   useEffect(() => {
     if (!enabled) return;
