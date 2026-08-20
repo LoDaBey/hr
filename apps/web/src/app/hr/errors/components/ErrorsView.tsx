@@ -3,23 +3,24 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import {
-  Alert,
+  Accordion,
   Anchor,
   Group,
-  Loader,
-  Paper,
   Stack,
   Table,
   Text,
-  Title,
 } from '@mantine/core';
 import { ErrorState } from '@/components/ErrorState';
 import { MotionButton } from '@/components/MotionButton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageSkeleton } from '@/components/ui/SkeletonBlocks';
+import { SectionCard } from '@/components/ui/SectionCard';
 import { useHrErrors } from '@/hooks/useHrErrors';
 import { api } from '@/lib/api';
 import { datetime } from '@/lib/format';
 import { toastError, toastSuccess } from '@/lib/toast';
-import { density, palette } from '@/theme';
+import { density } from '@/theme';
 import type { EmailDispatchResult } from '@/types/api';
 
 export function ErrorsView({
@@ -120,11 +121,7 @@ export function ErrorsView({
   }
 
   if (isLoading) {
-    return (
-      <Group justify="center" py="xl">
-        <Loader aria-label="Loading errors" color="accent" />
-      </Group>
-    );
+    return <PageSkeleton />;
   }
 
   if (error || !data) {
@@ -136,79 +133,87 @@ export function ErrorsView({
 
   return (
     <Stack gap={density.sectionGap}>
-      <Group justify="space-between" align="flex-start" wrap="wrap">
-        <div>
-          <Title order={1}>Errors</Title>
-          <Text c="dimmed" mt={4}>
-            Failed emails and open workflow errors. Retry a bounce, then drain the queue.
-          </Text>
-        </div>
-        {showDispatchButton ? (
-          <Group gap="sm">
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Send queued emails"
-              color="accent"
-              loading={dispatching}
-              onClick={() => void sendQueuedEmails()}
-            >
-              Send queued emails
-            </MotionButton>
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Run deadline monitor"
-              variant="default"
-              loading={runningDeadline}
-              onClick={() =>
-                void runCron('/api/cron/deadline-monitor', 'Deadline monitor', setRunningDeadline)
-              }
-            >
-              Run deadline monitor
-            </MotionButton>
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Run interview reminders"
-              variant="default"
-              loading={runningReminders}
-              onClick={() =>
-                void runCron(
-                  '/api/cron/interview-reminders',
-                  'Interview reminders',
-                  setRunningReminders,
-                )
-              }
-            >
-              Run interview reminders
-            </MotionButton>
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Run pipeline sweep"
-              variant="default"
-              loading={runningSweep}
-              onClick={() =>
-                void runCron('/api/cron/pipeline-sweep', 'Pipeline sweep', setRunningSweep)
-              }
-            >
-              Run pipeline sweep
-            </MotionButton>
-          </Group>
-        ) : null}
-      </Group>
+      <PageHeader
+        title="Errors"
+        subtitle="Failed emails and open workflow errors. Retry a bounce, then drain the queue."
+      />
 
-      {empty ? (
-        <Alert color="accent" variant="light" title="All clear">
-          No failed emails or open workflow errors. When an invite bounces, it will show up here.
-        </Alert>
+      {showDispatchButton ? (
+        <Accordion variant="contained" radius="md">
+          <Accordion.Item value="ops">
+            <Accordion.Control aria-label="Ops tools">Ops tools</Accordion.Control>
+            <Accordion.Panel>
+              <Group gap="sm" wrap="wrap">
+                <MotionButton
+                  className="cursor-pointer rounded-lg"
+                  aria-label="Send queued emails"
+                  color="accent"
+                  size="sm"
+                  loading={dispatching}
+                  onClick={() => void sendQueuedEmails()}
+                >
+                  Send queued emails
+                </MotionButton>
+                <MotionButton
+                  className="cursor-pointer rounded-lg"
+                  aria-label="Run deadline monitor"
+                  variant="default"
+                  size="sm"
+                  loading={runningDeadline}
+                  onClick={() =>
+                    void runCron('/api/cron/deadline-monitor', 'Deadline monitor', setRunningDeadline)
+                  }
+                >
+                  Run deadline monitor
+                </MotionButton>
+                <MotionButton
+                  className="cursor-pointer rounded-lg"
+                  aria-label="Run interview reminders"
+                  variant="default"
+                  size="sm"
+                  loading={runningReminders}
+                  onClick={() =>
+                    void runCron(
+                      '/api/cron/interview-reminders',
+                      'Interview reminders',
+                      setRunningReminders,
+                    )
+                  }
+                >
+                  Run interview reminders
+                </MotionButton>
+                <MotionButton
+                  className="cursor-pointer rounded-lg"
+                  aria-label="Run pipeline sweep"
+                  variant="default"
+                  size="sm"
+                  loading={runningSweep}
+                  onClick={() =>
+                    void runCron('/api/cron/pipeline-sweep', 'Pipeline sweep', setRunningSweep)
+                  }
+                >
+                  Run pipeline sweep
+                </MotionButton>
+              </Group>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       ) : null}
 
-      <Paper withBorder radius={density.defaultRadius} p="md" style={{ borderColor: `${palette.ink}14` }}>
-        <Title order={3} mb="sm">
-          Failed emails
-        </Title>
+      {empty ? (
+        <EmptyState
+          title="All clear"
+          description="No failed emails or open workflow errors. When an invite bounces, it will show up here."
+        />
+      ) : null}
+
+      <SectionCard title={`Failed emails (${failed_emails.length})`}>
         {failed_emails.length === 0 ? (
-          <Text c="dimmed">No failed emails. Nothing to retry.</Text>
+          <Text c="dimmed" size="sm">
+            No failed emails. Nothing to retry.
+          </Text>
         ) : (
-          <Table striped highlightOnHover horizontalSpacing="md" verticalSpacing="sm">
+          <Table highlightOnHover horizontalSpacing="md" verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Template</Table.Th>
@@ -222,7 +227,9 @@ export function ErrorsView({
               {failed_emails.map((row) => (
                 <Table.Tr key={row.id}>
                   <Table.Td>
-                    <Text fw={500}>{row.template_key}</Text>
+                    <Text fw={500} size="sm">
+                      {row.template_key}
+                    </Text>
                     {row.application_id ? (
                       <Anchor
                         component={Link}
@@ -234,13 +241,19 @@ export function ErrorsView({
                       </Anchor>
                     ) : null}
                   </Table.Td>
-                  <Table.Td>{row.to_email}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{row.to_email}</Text>
+                  </Table.Td>
                   <Table.Td>
                     <Text size="sm" c="dimmed" lineClamp={2}>
                       {row.last_error ?? '—'}
                     </Text>
                   </Table.Td>
-                  <Table.Td>{datetime(row.created_at)}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {datetime(row.created_at)}
+                    </Text>
+                  </Table.Td>
                   <Table.Td>
                     <MotionButton
                       className="cursor-pointer rounded-lg"
@@ -259,16 +272,15 @@ export function ErrorsView({
             </Table.Tbody>
           </Table>
         )}
-      </Paper>
+      </SectionCard>
 
-      <Paper withBorder radius={density.defaultRadius} p="md" style={{ borderColor: `${palette.ink}14` }}>
-        <Title order={3} mb="sm">
-          Workflow errors
-        </Title>
+      <SectionCard title={`Workflow errors (${errors.length})`}>
         {errors.length === 0 ? (
-          <Text c="dimmed">No open workflow errors.</Text>
+          <Text c="dimmed" size="sm">
+            No open workflow errors.
+          </Text>
         ) : (
-          <Table striped highlightOnHover horizontalSpacing="md" verticalSpacing="sm">
+          <Table highlightOnHover horizontalSpacing="md" verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Action</Table.Th>
@@ -280,20 +292,30 @@ export function ErrorsView({
             <Table.Tbody>
               {errors.map((row) => (
                 <Table.Tr key={row.id}>
-                  <Table.Td>{row.action ?? '—'}</Table.Td>
-                  <Table.Td>{row.node ?? '—'}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="danger">
+                      {row.action ?? '—'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{row.node ?? '—'}</Text>
+                  </Table.Td>
                   <Table.Td>
                     <Text size="sm" lineClamp={3}>
                       {row.error_message ?? '—'}
                     </Text>
                   </Table.Td>
-                  <Table.Td>{datetime(row.created_at)}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {datetime(row.created_at)}
+                    </Text>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
         )}
-      </Paper>
+      </SectionCard>
     </Stack>
   );
 }

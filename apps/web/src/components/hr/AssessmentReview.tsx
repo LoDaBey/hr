@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type { Extension } from '@codemirror/state';
 import { Alert, Badge, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
+import { ScoreDisplay } from '@/components/ui/ScoreDisplay';
 import { api } from '@/lib/api';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { density, palette } from '@/theme';
@@ -205,13 +206,14 @@ function ScoreHeader({
   );
 
   return (
-    <Group justify="space-between" align="center" wrap="wrap">
-      <Group gap="sm">
-        <Text fw={600}>
-          Score: {review.ai_score ?? Math.round(totalMax ? (totalScore / totalMax) * 100 : 0)}
-          {review.ai_max_score ? ` / ${review.ai_max_score}` : '%'}
-        </Text>
-        <Text size="sm" c="dimmed">
+    <Group justify="space-between" align="flex-start" wrap="wrap">
+      <Group gap="md" align="flex-end" wrap="wrap">
+        <ScoreDisplay
+          score={review.ai_score ?? Math.round(totalMax ? (totalScore / totalMax) * 100 : 0)}
+          max={review.ai_max_score ?? 100}
+          label="Assessment score"
+        />
+        <Text size="sm" c="dimmed" pb={4}>
           ({totalScore} / {totalMax} points)
         </Text>
         {review.late ? (

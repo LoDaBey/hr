@@ -9,6 +9,7 @@ export function SignOutButton() {
       className="cursor-pointer rounded-lg"
       aria-label="Sign out"
       variant="default"
+      size="compact-sm"
       onClick={() => signOut({ callbackUrl: '/hr/login' })}
     >
       Sign out

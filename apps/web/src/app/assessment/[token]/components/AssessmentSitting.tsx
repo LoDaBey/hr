@@ -202,10 +202,10 @@ export function AssessmentSitting({
   if (phase === 'done') {
     return (
       <Stack gap="md" maw={density.contentMaxWidth} mx="auto" py={56} px="md" align="center">
-        <Title order={1} ta="center" style={{ color: palette.ink }}>
-          Thank you
+        <Title order={1} ta="center" style={{ color: palette.ink, fontSize: '1.75rem' }}>
+          Assessment submitted
         </Title>
-        <Text ta="center" c="dimmed">
+        <Text ta="center" c="dimmed" maw={400}>
           Your answers are in. Our team will review them — you can close this page.
         </Text>
       </Stack>
@@ -214,26 +214,43 @@ export function AssessmentSitting({
 
   if (phase === 'intro') {
     return (
-      <Stack gap="lg" maw={density.contentMaxWidth} mx="auto" py={56} px="md">
+      <Stack
+        gap="lg"
+        maw={480}
+        mx="auto"
+        my={48}
+        px="md"
+        py="xl"
+        style={{
+          background: palette.surface,
+          border: `1px solid ${palette.border}`,
+          borderRadius: 12,
+          boxShadow: 'var(--hr-shadow-md)',
+        }}
+      >
         <div>
-          <Text size="sm" c="dimmed">
+          <Text size="xs" fw={600} tt="uppercase" style={{ color: palette.muted, letterSpacing: '0.06em' }}>
             {data.job_title}
           </Text>
-          <Title order={1} style={{ color: palette.ink, letterSpacing: density.titleLetterSpacing }}>
+          <Title order={1} mt={6} style={{ color: palette.ink, fontSize: '1.5rem', letterSpacing: density.titleLetterSpacing }}>
             {data.assessment.title}
           </Title>
-          <Text mt="xs">Hi {data.candidate_name}.</Text>
+          <Text mt="sm" size="sm">
+            Hi {data.candidate_name}.
+          </Text>
         </div>
-        <Text size="sm">
-          Time limit: <strong>{data.assessment.duration_minutes} minutes</strong> once you start ·{' '}
-          {data.assessment.question_count} question
-          {data.assessment.question_count === 1 ? '' : 's'}
-        </Text>
-        <Text size="sm" c="dimmed">
-          Start before {datetime(data.invite_deadline)}. The clock starts when you press Start.
-        </Text>
+        <Stack gap={6}>
+          <Text size="sm">
+            Time limit: <strong>{data.assessment.duration_minutes} minutes</strong> once you start ·{' '}
+            {data.assessment.question_count} question
+            {data.assessment.question_count === 1 ? '' : 's'}
+          </Text>
+          <Text size="sm" c="dimmed">
+            Start before {datetime(data.invite_deadline)}. The clock starts when you press Start.
+          </Text>
+        </Stack>
         {data.assessment.instructions ? (
-          <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+          <Text size="sm" style={{ whiteSpace: 'pre-wrap', color: palette.ink }}>
             {data.assessment.instructions}
           </Text>
         ) : null}
@@ -246,10 +263,11 @@ export function AssessmentSitting({
           className="cursor-pointer rounded-lg"
           aria-label="Start assessment"
           color="accent"
+          fullWidth
           loading={starting}
           onClick={() => void handleStart()}
         >
-          Start
+          Start assessment
         </MotionButton>
       </Stack>
     );
@@ -266,11 +284,12 @@ export function AssessmentSitting({
         px="md"
         py="sm"
         style={{
-          borderBottom: `1px solid ${palette.ink}14`,
-          background: palette.paper,
+          borderBottom: `1px solid ${palette.border}`,
+          background: palette.surface,
           position: 'sticky',
           top: 0,
           zIndex: 5,
+          boxShadow: 'var(--hr-shadow-sm)',
         }}
       >
         <Text size="sm" fw={600}>
@@ -290,6 +309,12 @@ export function AssessmentSitting({
               color:
                 remainingMs != null && remainingMs < 60_000 ? palette.danger : palette.ink,
               fontVariantNumeric: 'tabular-nums',
+              padding: '4px 10px',
+              borderRadius: 6,
+              background:
+                remainingMs != null && remainingMs < 60_000
+                  ? `${palette.danger}14`
+                  : palette.paper,
             }}
           >
             {remainingMs == null ? '—' : formatRemaining(remainingMs)}
@@ -301,19 +326,28 @@ export function AssessmentSitting({
         style={{
           display: 'flex',
           justifyContent: 'center',
-          padding: '32px 16px 48px',
+          padding: '24px 16px 48px',
         }}
       >
-        <Group align="flex-start" gap="lg" wrap="nowrap" maw={density.contentMaxWidth + 180}>
+        <Group
+          align="flex-start"
+          gap="lg"
+          wrap="wrap"
+          maw={density.contentMaxWidth + 180}
+          style={{ width: '100%', justifyContent: 'center' }}
+        >
           <Stack
             gap={4}
             p="sm"
             style={{
               width: 148,
               flexShrink: 0,
+              background: palette.surface,
+              border: `1px solid ${palette.border}`,
+              borderRadius: 8,
             }}
           >
-            <Text size="xs" c="dimmed" mb={4}>
+            <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase" style={{ letterSpacing: '0.04em' }}>
               Questions
             </Text>
             {questions.map((q, i) => {
@@ -329,8 +363,10 @@ export function AssessmentSitting({
                     padding: '6px 8px',
                     textAlign: 'left',
                     background: active ? `${palette.accent}18` : 'transparent',
+                    borderLeft: active ? `3px solid ${palette.accent}` : '3px solid transparent',
                     color: answered ? palette.success : palette.ink,
                     fontSize: 13,
+                    fontWeight: active ? 600 : 400,
                   }}
                 >
                   {i + 1}. {answered ? 'Answered' : 'Not answered'}
@@ -347,7 +383,8 @@ export function AssessmentSitting({
               width: density.contentMaxWidth,
               maxWidth: density.contentMaxWidth,
               minHeight: QUESTION_CARD_MIN_HEIGHT,
-              borderColor: `${palette.ink}14`,
+              borderColor: palette.border,
+              background: palette.surface,
               display: 'flex',
               flexDirection: 'column',
             }}
@@ -360,9 +397,14 @@ export function AssessmentSitting({
               ) : null}
               {current ? (
                 <>
-                  <Text fw={600} style={{ whiteSpace: 'pre-wrap' }}>
-                    {current.prompt}
-                  </Text>
+                  <Group justify="space-between" align="flex-start">
+                    <Text fw={600} style={{ whiteSpace: 'pre-wrap', flex: 1 }}>
+                      {current.prompt}
+                    </Text>
+                    <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+                      {current.max_score} pts
+                    </Text>
+                  </Group>
                   <AssessmentQuestionInput
                     question={current}
                     value={answers[current.id]}
@@ -377,7 +419,7 @@ export function AssessmentSitting({
               px="lg"
               py="md"
               style={{
-                borderTop: `1px solid ${palette.ink}14`,
+                borderTop: `1px solid ${palette.border}`,
                 minHeight: NAV_BAR_HEIGHT,
               }}
             >
@@ -388,7 +430,7 @@ export function AssessmentSitting({
                 disabled={index === 0}
                 onClick={() => void goTo(index - 1)}
               >
-                Prev
+                Previous
               </MotionButton>
               {isLast ? (
                 <MotionButton
@@ -398,7 +440,7 @@ export function AssessmentSitting({
                   loading={submitting}
                   onClick={() => setConfirmOpen(true)}
                 >
-                  Submit
+                  Submit assessment
                 </MotionButton>
               ) : (
                 <MotionButton

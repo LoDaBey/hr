@@ -3,21 +3,24 @@
 import Link from 'next/link';
 import {
   Anchor,
-  Group,
-  Loader,
-  Paper,
+  Box,
   SimpleGrid,
   Stack,
   Table,
   Text,
-  Title,
 } from '@mantine/core';
 import { ErrorState } from '@/components/ErrorState';
+import { MotionButton } from '@/components/MotionButton';
 import { MotionStagger } from '@/components/hr/MotionPrimitives';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { MetricCard } from '@/components/ui/MetricCard';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { MetricCardSkeleton, TableSkeleton } from '@/components/ui/SkeletonBlocks';
 import { useHrDashboard } from '@/hooks/useHrDashboard';
 import { listItemVariants, motionTransition } from '@/lib/motion';
 import { DASHBOARD_STAGE_COLS } from '@/lib/pipeline-rail';
 import { density, palette } from '@/theme';
+import type { MetricCardProps } from '@/types/ui';
 import { motion } from 'framer-motion';
 
 function candidatesHref(jobId: string, stage: string | null): string {
@@ -27,29 +30,16 @@ function candidatesHref(jobId: string, stage: string | null): string {
   return `/hr/candidates?${params.toString()}`;
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <motion.div variants={listItemVariants} transition={motionTransition} whileHover={{ y: -2 }}>
-      <Paper withBorder p="md" radius={density.defaultRadius} style={{ borderColor: `${palette.ink}14` }}>
-        <Text size="sm" c="dimmed">
-          {label}
-        </Text>
-        <Text fw={700} size="xl" style={{ color: palette.ink, letterSpacing: density.titleLetterSpacing }}>
-          {value}
-        </Text>
-      </Paper>
-    </motion.div>
-  );
-}
-
 export function DashboardView() {
   const { data, error, isLoading } = useHrDashboard();
 
   if (isLoading) {
     return (
-      <Group justify="center" py="xl">
-        <Loader aria-label="Loading dashboard" color="accent" />
-      </Group>
+      <Stack gap={density.sectionGap}>
+        <PageHeader title="Dashboard" subtitle="What needs attention right now." />
+        <MetricCardSkeleton count={8} />
+        <TableSkeleton rows={4} />
+      </Stack>
     );
   }
 
@@ -59,33 +49,99 @@ export function DashboardView() {
 
   const { totals, by_job } = data;
 
-  const tiles: Array<{ label: string; value: number }> = [
-    { label: 'Needs your review', value: totals.needs_review },
-    { label: 'Applicants', value: totals.applicants },
-    { label: 'New today', value: totals.new_today },
-    { label: 'Assessments pending', value: totals.assessments_pending },
-    { label: 'Tech tests pending', value: totals.techtests_pending },
-    { label: 'Interviews upcoming', value: totals.interviews_upcoming },
-    { label: 'Hired', value: totals.hired },
-    { label: 'Rejected', value: totals.rejected },
+  const tiles: MetricCardProps[] = [
+    {
+      label: 'Needs your review',
+      value: totals.needs_review,
+      href: '/hr/candidates?stage=INITIAL_SCREENING_REVIEW',
+      emphasis: 'primary',
+      tone: 'warning',
+    },
+    {
+      label: 'Applicants',
+      value: totals.applicants,
+      href: '/hr/candidates',
+    },
+    {
+      label: 'New today',
+      value: totals.new_today,
+      href: '/hr/candidates',
+      emphasis: 'default',
+    },
+    {
+      label: 'Assessments pending',
+      value: totals.assessments_pending,
+      href: '/hr/candidates?stage=TECH_ASSESSMENT_SENT',
+    },
+    {
+      label: 'Tech tests pending',
+      value: totals.techtests_pending,
+      href: '/hr/candidates?stage=RECORDED_TECH_INVITED',
+    },
+    {
+      label: 'Interviews upcoming',
+      value: totals.interviews_upcoming,
+      href: '/hr/interviews',
+    },
+    {
+      label: 'Hired',
+      value: totals.hired,
+      href: '/hr/candidates?stage=HIRED',
+      tone: 'success',
+      emphasis: 'muted',
+    },
+    {
+      label: 'Rejected',
+      value: totals.rejected,
+      href: '/hr/candidates?status=REJECTED',
+      tone: 'danger',
+      emphasis: 'muted',
+    },
   ];
 
   return (
     <Stack gap={density.sectionGap}>
-      <Title order={1}>Dashboard</Title>
+      <PageHeader
+        title="Dashboard"
+        subtitle="What needs attention right now."
+        actions={
+          <MotionButton
+            component={Link}
+            href="/hr/jobs/new"
+            className="cursor-pointer rounded-lg"
+            aria-label="Create new job"
+            size="sm"
+          >
+            New job
+          </MotionButton>
+        }
+      />
 
       <MotionStagger>
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
           {tiles.map((tile) => (
-            <StatCard key={tile.label} label={tile.label} value={tile.value} />
+            <motion.div key={tile.label} variants={listItemVariants} transition={motionTransition}>
+              <MetricCard {...tile} />
+            </motion.div>
           ))}
         </SimpleGrid>
       </MotionStagger>
 
       {by_job.length === 0 ? (
-        <Paper withBorder p="lg" radius={density.defaultRadius}>
-          <Text c="dimmed">No published jobs yet. Create a job and publish it to see the pipeline.</Text>
-        </Paper>
+        <EmptyState
+          title="No published jobs yet"
+          description="Create a job and publish it to see the hiring pipeline."
+          action={
+            <MotionButton
+              component={Link}
+              href="/hr/jobs/new"
+              className="cursor-pointer rounded-lg"
+              aria-label="Create new job"
+            >
+              New job
+            </MotionButton>
+          }
+        />
       ) : (
         <motion.div
           variants={listItemVariants}
@@ -93,20 +149,61 @@ export function DashboardView() {
           animate="animate"
           transition={motionTransition}
         >
-          <Paper withBorder radius={density.defaultRadius} style={{ overflow: 'hidden', borderColor: `${palette.ink}14` }}>
-            <Table striped highlightOnHover horizontalSpacing="md" verticalSpacing="sm">
+          <Box
+            style={{
+              overflow: 'auto',
+              border: `1px solid ${palette.border}`,
+              borderRadius: 8,
+              background: palette.surface,
+            }}
+          >
+            <Text
+              size="sm"
+              fw={600}
+              px="md"
+              py="sm"
+              style={{ borderBottom: `1px solid ${palette.border}` }}
+            >
+              Pipeline by job
+            </Text>
+            <Table
+              highlightOnHover
+              horizontalSpacing="md"
+              verticalSpacing="xs"
+              stickyHeader
+              style={{ minWidth: 720 }}
+            >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Job</Table.Th>
+                  <Table.Th
+                    style={{
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 2,
+                      background: palette.paper,
+                      minWidth: 160,
+                    }}
+                  >
+                    Job
+                  </Table.Th>
                   {DASHBOARD_STAGE_COLS.map((col) => (
-                    <Table.Th key={col.key}>{col.label}</Table.Th>
+                    <Table.Th key={col.key} style={{ whiteSpace: 'nowrap' }}>
+                      {col.label}
+                    </Table.Th>
                   ))}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {by_job.map((job) => (
                   <Table.Tr key={job.job_id}>
-                    <Table.Td>
+                    <Table.Td
+                      style={{
+                        position: 'sticky',
+                        left: 0,
+                        background: palette.surface,
+                        zIndex: 1,
+                      }}
+                    >
                       <Anchor
                         component={Link}
                         href={`/hr/jobs/${job.job_id}`}
@@ -123,15 +220,23 @@ export function DashboardView() {
                       const count = job.counts[col.key] ?? 0;
                       return (
                         <Table.Td key={col.key}>
-                          <Anchor
-                            component={Link}
-                            href={candidatesHref(job.job_id, col.stage)}
-                            aria-label={`${job.title} ${col.label}: ${count}`}
-                            c="accent"
-                            underline="hover"
-                          >
-                            {count}
-                          </Anchor>
+                          {count > 0 ? (
+                            <Anchor
+                              component={Link}
+                              href={candidatesHref(job.job_id, col.stage)}
+                              aria-label={`${job.title} ${col.label}: ${count}`}
+                              c="accent"
+                              underline="hover"
+                              fw={500}
+                              size="sm"
+                            >
+                              {count}
+                            </Anchor>
+                          ) : (
+                            <Text size="sm" c="dimmed">
+                              0
+                            </Text>
+                          )}
                         </Table.Td>
                       );
                     })}
@@ -139,7 +244,7 @@ export function DashboardView() {
                 ))}
               </Table.Tbody>
             </Table>
-          </Paper>
+          </Box>
         </motion.div>
       )}
     </Stack>

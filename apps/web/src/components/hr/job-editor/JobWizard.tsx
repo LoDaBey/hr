@@ -819,7 +819,18 @@ export function JobWizard({
         </motion.div>
       </AnimatePresence>
 
-      <Group justify="space-between" align="center" wrap="wrap" pt="sm">
+      <Group
+        justify="space-between"
+        align="center"
+        wrap="wrap"
+        className="hr-sticky-footer"
+        p="sm"
+        mt="sm"
+        style={{
+          marginInline: -4,
+          borderRadius: 8,
+        }}
+      >
         <Group gap="sm">
           {active > 0 ? (
             <MotionButton

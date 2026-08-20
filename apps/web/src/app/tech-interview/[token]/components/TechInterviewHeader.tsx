@@ -1,7 +1,7 @@
 'use client';
 
 import { Group, Text } from '@mantine/core';
-import { palette } from '@/theme';
+import { palette, shadows } from '@/theme';
 
 function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -38,17 +38,18 @@ export function TechInterviewHeader({
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        background: palette.paper,
-        borderBottom: `1px solid ${palette.ink}14`,
+        background: palette.surface,
+        borderBottom: `1px solid ${palette.border}`,
         padding: '12px 16px',
+        boxShadow: shadows.sm,
       }}
     >
       <Group justify="space-between" align="center" wrap="nowrap" gap="md">
         <div style={{ minWidth: 0 }}>
-          <Text size="sm" c="dimmed" truncate>
+          <Text size="xs" c="dimmed" truncate tt="uppercase" fw={600} style={{ letterSpacing: '0.04em' }}>
             {jobTitle}
           </Text>
-          <Text fw={700} truncate style={{ color: palette.ink }}>
+          <Text fw={700} truncate size="sm" style={{ color: palette.ink }}>
             {assessmentTitle}
           </Text>
         </div>
@@ -59,8 +60,8 @@ export function TechInterviewHeader({
             px={12}
             py={6}
             style={{
-              borderRadius: 999,
-              background: `${palette.danger}14`,
+              borderRadius: 8,
+              background: `${palette.danger}12`,
               border: `1px solid ${palette.danger}33`,
             }}
             aria-label="Recording in progress"
@@ -95,6 +96,12 @@ export function TechInterviewHeader({
               color: countdownColor(remainingMs),
               minWidth: 56,
               textAlign: 'right',
+              padding: '4px 8px',
+              borderRadius: 6,
+              background:
+                remainingMs != null && remainingMs < 60_000
+                  ? `${palette.danger}14`
+                  : palette.paper,
             }}
             aria-label="Time remaining"
           >

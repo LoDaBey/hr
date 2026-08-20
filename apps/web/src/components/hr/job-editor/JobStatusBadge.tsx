@@ -1,25 +1,36 @@
 'use client';
 
-import { Badge, Group, Text } from '@mantine/core';
+import { Group, Text } from '@mantine/core';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { JOB_STATUS, labelOf } from '@/lib/labels';
 import type { JobStatus } from '@/types/domain';
+import type { JobStatusBadgeProps, StatusTone } from '@/types/ui';
 
-const STATUS_COLOR: Record<JobStatus, string> = {
+const STATUS_TONE: Record<JobStatus, StatusTone> = {
   DRAFT: 'ink',
   OPEN: 'success',
   PAUSED: 'warning',
-  CLOSED: 'ink',
+  CLOSED: 'muted',
 };
 
-export function JobStatusBadge({ status }: { status: JobStatus }) {
+export function JobStatusBadge({ status, showLabel = true }: JobStatusBadgeProps) {
+  const label = labelOf(JOB_STATUS, status);
+  const badge = (
+    <StatusBadge
+      label={label}
+      tone={STATUS_TONE[status]}
+      ariaLabel={`Job status ${label}`}
+    />
+  );
+
+  if (!showLabel) return badge;
+
   return (
     <Group gap="xs">
       <Text size="sm" c="dimmed">
         Status
       </Text>
-      <Badge variant="light" color={STATUS_COLOR[status]} aria-label={`Job status ${labelOf(JOB_STATUS, status)}`}>
-        {labelOf(JOB_STATUS, status)}
-      </Badge>
+      {badge}
     </Group>
   );
 }

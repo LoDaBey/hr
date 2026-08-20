@@ -1,3 +1,19 @@
+:root {
+  --hr-ink: #1a2332;
+  --hr-paper: #f4f6f8;
+  --hr-surface: #ffffff;
+  --hr-accent: #0f6e72;
+  --hr-danger: #b42318;
+  --hr-success: #1f7a4d;
+  --hr-warning: #a15c07;
+  --hr-muted: #5c6778;
+  --hr-border: rgba(26, 35, 50, 0.1);
+  --hr-border-strong: rgba(26, 35, 50, 0.16);
+  --hr-shadow-sm: 0 1px 2px rgba(26, 35, 50, 0.04), 0 1px 3px rgba(26, 35, 50, 0.06);
+  --hr-shadow-md: 0 2px 6px rgba(26, 35, 50, 0.06), 0 4px 12px rgba(26, 35, 50, 0.06);
+  --hr-radius: 8px;
+}
+
 html,
 body {
   min-height: 100%;
@@ -6,6 +22,8 @@ body {
 body {
   margin: 0;
   letter-spacing: 0;
+  background: var(--hr-paper);
+  color: var(--hr-ink);
 }
 
 h1,
@@ -20,4 +38,34 @@ h6 {
 :focus-visible {
   outline: 2px solid var(--mantine-color-accent-5);
   outline-offset: 2px;
+}
+
+/* Dense data tables — shared chrome for mantine-datatable */
+.hr-data-table {
+  border: 1px solid var(--hr-border);
+  border-radius: var(--hr-radius);
+  overflow: hidden;
+  background: var(--hr-surface);
+}
+
+.hr-data-table thead th {
+  background: var(--hr-paper) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--hr-muted) !important;
+}
+
+.hr-data-table tbody tr:hover {
+  background: rgba(15, 110, 114, 0.04);
+}
+
+.hr-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  background: var(--hr-surface);
+  border-top: 1px solid var(--hr-border);
+  box-shadow: var(--hr-shadow-sm);
 }

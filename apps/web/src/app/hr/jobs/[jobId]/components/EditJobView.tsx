@@ -1,9 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Group, Loader, Stack, Title } from '@mantine/core';
+import { Stack } from '@mantine/core';
 import { JobWizard } from '@/components/hr/job-editor/JobWizard';
 import { ErrorState } from '@/components/ErrorState';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageSkeleton } from '@/components/ui/SkeletonBlocks';
 import { useHrJob } from '@/hooks/useHrJobs';
 
 export function EditJobView({ jobId }: { jobId: string }) {
@@ -11,11 +13,7 @@ export function EditJobView({ jobId }: { jobId: string }) {
   const { data, error, isLoading, mutate } = useHrJob(jobId);
 
   if (isLoading) {
-    return (
-      <Group justify="center" py="xl">
-        <Loader aria-label="Loading job" color="accent" />
-      </Group>
-    );
+    return <PageSkeleton />;
   }
 
   if (error || !data) {
@@ -24,7 +22,10 @@ export function EditJobView({ jobId }: { jobId: string }) {
 
   return (
     <Stack gap="md">
-      <Title order={1}>Edit job</Title>
+      <PageHeader
+        title="Edit job"
+        subtitle={data.job.title}
+      />
       <JobWizard
         key={jobId}
         mode="edit"

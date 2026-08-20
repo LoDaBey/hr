@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   ActionIcon,
+  Anchor,
   Box,
+  Breadcrumbs,
   Burger,
   Group,
   NavLink,
@@ -16,11 +18,11 @@ import {
 } from '@mantine/core';
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import {
+  IconAlertTriangle,
   IconBriefcase,
   IconCalendarEvent,
   IconLayoutDashboard,
   IconLayoutSidebarLeftCollapse,
-  IconLayoutSidebarLeftExpand,
   IconSettings,
   IconUsers,
 } from '@tabler/icons-react';
@@ -34,7 +36,7 @@ import {
   shellVariants,
   sidebarOverlayVariants,
 } from '@/lib/motion';
-import { density, palette } from '@/theme';
+import { density, palette, shadows } from '@/theme';
 import type { Role } from '@/types/domain';
 
 type NavItem = {
@@ -44,23 +46,80 @@ type NavItem = {
 };
 
 const NAV_PRIMARY: NavItem[] = [
-  { href: '/hr', label: 'Dashboard', icon: <IconLayoutDashboard size={20} aria-hidden /> },
-  { href: '/hr/candidates', label: 'Candidates', icon: <IconUsers size={20} aria-hidden /> },
-  { href: '/hr/jobs', label: 'Jobs', icon: <IconBriefcase size={20} aria-hidden /> },
-  { href: '/hr/settings', label: 'Settings', icon: <IconSettings size={20} aria-hidden /> },
+  { href: '/hr', label: 'Dashboard', icon: <IconLayoutDashboard size={18} aria-hidden /> },
+  { href: '/hr/candidates', label: 'Candidates', icon: <IconUsers size={18} aria-hidden /> },
+  { href: '/hr/jobs', label: 'Jobs', icon: <IconBriefcase size={18} aria-hidden /> },
+  { href: '/hr/interviews', label: 'Interviews', icon: <IconCalendarEvent size={18} aria-hidden /> },
 ];
 
-const NAV_WORK: NavItem[] = [
-  {
-    href: '/hr/interviews',
-    label: 'Interviews',
-    icon: <IconCalendarEvent size={20} aria-hidden />,
-  },
+const NAV_SETTINGS: NavItem[] = [
+  { href: '/hr/settings', label: 'Settings', icon: <IconSettings size={18} aria-hidden /> },
 ];
+
+const NAV_OPS: NavItem[] = [
+  { href: '/hr/errors', label: 'Errors', icon: <IconAlertTriangle size={18} aria-hidden /> },
+];
+
+const CRUMB_LABELS: Record<string, string> = {
+  hr: 'Home',
+  candidates: 'Candidates',
+  jobs: 'Jobs',
+  interviews: 'Interviews',
+  settings: 'Settings',
+  errors: 'Errors',
+  new: 'New job',
+  login: 'Sign in',
+};
 
 function isActive(pathname: string, href: string): boolean {
   if (href === '/hr') return pathname === '/hr';
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function BrandMark({ compact }: { compact?: boolean }) {
+  return (
+    <Group gap={compact ? 0 : 10} wrap="nowrap" align="center">
+      <Box
+        aria-hidden
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 7,
+          background: `linear-gradient(135deg, ${palette.accent} 0%, #0b5053 100%)`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          boxShadow: shadows.sm,
+        }}
+      >
+        <Box
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 3,
+            border: `2px solid ${palette.surface}`,
+            borderRight: 'none',
+            borderBottom: 'none',
+            transform: 'rotate(45deg) translate(1px, 1px)',
+          }}
+        />
+      </Box>
+      {!compact ? (
+        <Title
+          order={4}
+          style={{
+            color: palette.surface,
+            letterSpacing: density.titleLetterSpacing,
+            fontSize: '1.05rem',
+            lineHeight: 1,
+          }}
+        >
+          Hiring
+        </Title>
+      ) : null}
+    </Group>
+  );
 }
 
 function NavSection({
@@ -75,14 +134,15 @@ function NavSection({
   collapsed: boolean;
 }) {
   return (
-    <Stack gap={4}>
+    <Stack gap={2}>
       {!collapsed ? (
         <Text
           size="xs"
           tt="uppercase"
           fw={600}
-          style={{ color: `${palette.paper}99`, letterSpacing: '0.06em' }}
+          style={{ color: `${palette.surface}66`, letterSpacing: '0.06em' }}
           px="sm"
+          mb={2}
         >
           {label}
         </Text>
@@ -91,7 +151,7 @@ function NavSection({
         const active = isActive(pathname, item.href);
         const link = (
           <motion.div
-            whileHover={{ x: collapsed ? 0 : 2 }}
+            whileHover={{ x: collapsed ? 0 : 1 }}
             whileTap={{ scale: density.motion.tapScale }}
             transition={motionTransitionFast}
           >
@@ -102,17 +162,21 @@ function NavSection({
               leftSection={item.icon}
               active={active}
               aria-label={item.label}
-              variant={active ? 'filled' : 'subtle'}
-              color="accent"
+              aria-current={active ? 'page' : undefined}
               styles={{
                 root: {
-                  borderRadius: `var(--mantine-radius-${density.defaultRadius})`,
-                  color: active ? palette.paper : `${palette.paper}cc`,
-                  backgroundColor: active ? palette.accent : 'transparent',
+                  borderRadius: 8,
+                  color: active ? palette.surface : `${palette.surface}b3`,
+                  backgroundColor: active ? `${palette.accent}` : 'transparent',
                   justifyContent: collapsed ? 'center' : undefined,
+                  paddingInline: collapsed ? 10 : 12,
+                  minHeight: 36,
+                  '&:hover': {
+                    backgroundColor: active ? palette.accent : `${palette.surface}12`,
+                  },
                 },
-                label: { color: 'inherit' },
-                section: { color: 'inherit', marginInlineEnd: collapsed ? 0 : undefined },
+                label: { color: 'inherit', fontWeight: active ? 600 : 500, fontSize: 13 },
+                section: { color: 'inherit', marginInlineEnd: collapsed ? 0 : 10 },
               }}
             />
           </motion.div>
@@ -127,6 +191,60 @@ function NavSection({
         );
       })}
     </Stack>
+  );
+}
+
+function HeaderBreadcrumbs({ pathname }: { pathname: string }) {
+  const crumbs = useMemo(() => {
+    const parts = pathname.split('/').filter(Boolean);
+    if (parts[0] !== 'hr') return [];
+    const items: { title: string; href: string }[] = [];
+    let acc = '';
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      acc += `/${part}`;
+      const isId = /^[0-9a-f-]{8,}$/i.test(part) || /^\d+$/.test(part);
+      let title = CRUMB_LABELS[part] ?? (isId ? 'Detail' : part);
+      if (i === 0) title = 'Dashboard';
+      items.push({ title, href: acc });
+    }
+    return items;
+  }, [pathname]);
+
+  if (crumbs.length <= 1) {
+    return (
+      <Text size="sm" fw={500} style={{ color: palette.muted }}>
+        {crumbs[0]?.title ?? 'Dashboard'}
+      </Text>
+    );
+  }
+
+  return (
+    <Breadcrumbs separator="›" separatorMargin={6}>
+      {crumbs.map((c, i) => {
+        const last = i === crumbs.length - 1;
+        if (last) {
+          return (
+            <Text key={c.href} size="sm" fw={600} style={{ color: palette.ink }}>
+              {c.title}
+            </Text>
+          );
+        }
+        return (
+          <Anchor
+            key={c.href}
+            component={Link}
+            href={c.href}
+            size="sm"
+            c="dimmed"
+            underline="hover"
+            aria-label={`Go to ${c.title}`}
+          >
+            {c.title}
+          </Anchor>
+        );
+      })}
+    </Breadcrumbs>
   );
 }
 
@@ -220,51 +338,42 @@ export function AppShell({
               left: 0,
               height: '100dvh',
               zIndex: 100,
-              padding: 'var(--mantine-spacing-md)',
+              padding: '14px 10px',
               overflow: 'hidden',
+              borderRight: `1px solid ${palette.ink}`,
             }}
           >
-            <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
-              <Group justify={railCollapsed ? 'center' : 'space-between'} wrap="nowrap" gap="xs">
-                <AnimatePresence initial={false}>
-                  {!railCollapsed ? (
-                    <motion.div
-                      key="brand"
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -8 }}
-                      transition={motionTransitionFast}
+            <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
+              <Group justify={railCollapsed ? 'center' : 'space-between'} wrap="nowrap" gap="xs" px={railCollapsed ? 0 : 4}>
+                {railCollapsed && !isMobile ? (
+                  <Tooltip label="Expand sidebar" position="right">
+                    <ActionIcon
+                      className="cursor-pointer rounded-lg"
+                      aria-label="Expand sidebar"
+                      variant="subtle"
+                      onClick={() => setCollapsed(false)}
+                      style={{ color: palette.surface }}
                     >
-                      <Title
-                        order={4}
-                        style={{ color: palette.paper, letterSpacing: density.titleLetterSpacing }}
-                      >
-                        Hiring
-                      </Title>
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-                {!isMobile ? (
-                  <Tooltip
-                    label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                    position="right"
-                  >
+                      <BrandMark compact />
+                    </ActionIcon>
+                  </Tooltip>
+                ) : (
+                  <BrandMark />
+                )}
+                {!isMobile && !railCollapsed ? (
+                  <Tooltip label="Collapse sidebar" position="right">
                     <motion.div
                       whileHover={{ scale: density.motion.hoverScale }}
                       whileTap={{ scale: density.motion.tapScale }}
                     >
                       <ActionIcon
                         className="cursor-pointer rounded-lg"
-                        aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                        aria-label="Collapse sidebar"
                         variant="subtle"
-                        onClick={() => setCollapsed((value) => !value)}
-                        style={{ color: palette.paper }}
+                        onClick={() => setCollapsed(true)}
+                        style={{ color: `${palette.surface}99` }}
                       >
-                        {railCollapsed ? (
-                          <IconLayoutSidebarLeftExpand size={20} aria-hidden />
-                        ) : (
-                          <IconLayoutSidebarLeftCollapse size={20} aria-hidden />
-                        )}
+                        <IconLayoutSidebarLeftCollapse size={18} aria-hidden />
                       </ActionIcon>
                     </motion.div>
                   </Tooltip>
@@ -272,14 +381,21 @@ export function AppShell({
               </Group>
 
               <NavSection
-                label="Oversee"
+                label="Recruit"
                 items={NAV_PRIMARY}
                 pathname={pathname}
                 collapsed={railCollapsed}
               />
+              <Box style={{ flex: 1 }} />
               <NavSection
-                label="Schedule"
-                items={NAV_WORK}
+                label="Workspace"
+                items={NAV_SETTINGS}
+                pathname={pathname}
+                collapsed={railCollapsed}
+              />
+              <NavSection
+                label="Ops"
+                items={NAV_OPS}
                 pathname={pathname}
                 collapsed={railCollapsed}
               />
@@ -310,24 +426,27 @@ export function AppShell({
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
-            background: palette.paper,
-            borderBottom: `1px solid ${palette.ink}14`,
+            background: palette.surface,
+            borderBottom: `1px solid ${palette.border}`,
             paddingInline: 'var(--mantine-spacing-md)',
+            boxShadow: shadows.sm,
+            zIndex: 50,
           }}
         >
-          <Group h="100%" w="100%" justify="space-between" wrap="nowrap">
-            {isMobile ? (
-              <Burger
-                opened={mobileOpened}
-                onClick={toggleMobile}
-                size="sm"
-                aria-label="Toggle navigation"
-                color={palette.ink}
-              />
-            ) : (
-              <span />
-            )}
-            <Group gap="md" wrap="nowrap" ml="auto">
+          <Group h="100%" w="100%" justify="space-between" wrap="nowrap" gap="md">
+            <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+              {isMobile ? (
+                <Burger
+                  opened={mobileOpened}
+                  onClick={toggleMobile}
+                  size="sm"
+                  aria-label="Toggle navigation"
+                  color={palette.ink}
+                />
+              ) : null}
+              <HeaderBreadcrumbs pathname={pathname} />
+            </Group>
+            <Group gap="md" wrap="nowrap">
               <Box ta="right">
                 <Text size="sm" fw={600} style={{ color: palette.ink }} lh={1.2}>
                   {userName}
@@ -343,7 +462,7 @@ export function AppShell({
 
         <Box
           component="main"
-          p="md"
+          p={density.pagePadding}
           style={{
             flex: 1,
             background: palette.paper,

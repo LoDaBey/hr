@@ -2,9 +2,11 @@
 
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Group, Loader, Stack, Title } from '@mantine/core';
+import { Stack } from '@mantine/core';
 import { JobWizard } from '@/components/hr/job-editor/JobWizard';
 import { ErrorState } from '@/components/ErrorState';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageSkeleton } from '@/components/ui/SkeletonBlocks';
 import { useHrJob } from '@/hooks/useHrJobs';
 
 function NewJobWizardInner() {
@@ -16,11 +18,7 @@ function NewJobWizardInner() {
   const { data, error, isLoading } = useHrJob(jobId);
 
   if (jobId && isLoading) {
-    return (
-      <Group justify="center" py="xl">
-        <Loader aria-label="Loading draft job" color="accent" />
-      </Group>
-    );
+    return <PageSkeleton />;
   }
 
   if (jobId && (error || !data)) {
@@ -54,14 +52,11 @@ function NewJobWizardInner() {
 export function NewJobView() {
   return (
     <Stack gap="md">
-      <Title order={1}>New job</Title>
-      <Suspense
-        fallback={
-          <Group justify="center" py="xl">
-            <Loader aria-label="Loading job wizard" color="accent" />
-          </Group>
-        }
-      >
+      <PageHeader
+        title="New job"
+        subtitle="Configure the role, application form, screening, and assessments."
+      />
+      <Suspense fallback={<PageSkeleton />}>
         <NewJobWizardInner />
       </Suspense>
     </Stack>

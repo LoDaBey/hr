@@ -10,17 +10,29 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
+import { CandidateAvatar } from '@/components/hr/CandidateAvatar';
+import { ApplicationStatusBadge } from '@/components/hr/status/DomainStatusBadges';
 import { ErrorState } from '@/components/ErrorState';
 import { MotionButton } from '@/components/MotionButton';
+import { StageBadge } from '@/components/StageBadge';
 import { StageRail } from '@/components/StageRail';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { FilterBar } from '@/components/ui/FilterBar';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { datetime } from '@/lib/format';
-import { CANDIDATE_LIST_STAGES, RECOMMENDATION, STAGE, STATUS, labelOf, selectOptions, stageLabel } from '@/lib/labels';
+import {
+  CANDIDATE_LIST_STAGES,
+  RECOMMENDATION,
+  STAGE,
+  STATUS,
+  labelOf,
+  selectOptions,
+} from '@/lib/labels';
 import { useHrCandidates } from '@/hooks/useHrCandidates';
 import { useHrJobs } from '@/hooks/useHrJobs';
-import { density } from '@/theme';
+import type { FilterChip } from '@/types/ui';
 import type { Recommendation, Stage, Status } from '@/types/domain';
 import { CandidateRowActions } from './CandidateRowActions';
 import { ScreeningPendingCell } from './ScreeningPendingCell';
@@ -76,16 +88,59 @@ export function CandidatesListView() {
     [pathname, router, searchParams],
   );
 
+  const clearAll = () => router.push(pathname);
+
   const jobOptions = (jobsData?.jobs ?? []).map((j) => ({
     value: j.id,
     label: j.title,
   }));
 
+  const chips: FilterChip[] = [];
+  if (jobId) {
+    const jobLabel = jobOptions.find((j) => j.value === jobId)?.label ?? 'Job';
+    chips.push({ key: 'job_id', label: `Job: ${jobLabel}`, onRemove: () => setParams({ job_id: null }) });
+  }
+  if (stage) {
+    chips.push({
+      key: 'stage',
+      label: `Stage: ${labelOf(STAGE, stage as Stage)}`,
+      onRemove: () => setParams({ stage: null }),
+    });
+  }
+  if (status) {
+    chips.push({
+      key: 'status',
+      label: `Status: ${labelOf(STATUS, status as Status)}`,
+      onRemove: () => setParams({ status: null }),
+    });
+  }
+  if (q) {
+    chips.push({ key: 'q', label: `Search: ${q}`, onRemove: () => setParams({ q: null }) });
+  }
+  if (minScore) {
+    chips.push({
+      key: 'min_score',
+      label: `Min score: ${minScore}`,
+      onRemove: () => setParams({ min_score: null }),
+    });
+  }
+  if (minExperience) {
+    chips.push({
+      key: 'min_experience',
+      label: `Min years: ${minExperience}`,
+      onRemove: () => setParams({ min_experience: null }),
+    });
+  }
+
   return (
     <Stack gap="md">
-      <Title order={1}>Candidates</Title>
+      <PageHeader
+        title="Candidates"
+        count={data?.total}
+        subtitle="Search, filter, and open applications."
+      />
 
-      <Group align="flex-end" wrap="wrap">
+      <FilterBar chips={chips} onClearAll={filtersActive ? clearAll : undefined}>
         <Select
           className="rounded outline-none"
           label="Job"
@@ -95,7 +150,7 @@ export function CandidatesListView() {
           data={jobOptions}
           value={jobId}
           onChange={(value) => setParams({ job_id: value })}
-          w={220}
+          w={200}
         />
         <Select
           className="rounded outline-none"
@@ -105,7 +160,7 @@ export function CandidatesListView() {
           data={STAGE_OPTIONS}
           value={stage}
           onChange={(value) => setParams({ stage: value })}
-          w={220}
+          w={200}
         />
         <Select
           className="rounded outline-none"
@@ -115,7 +170,7 @@ export function CandidatesListView() {
           data={STATUS_OPTIONS}
           value={status}
           onChange={(value) => setParams({ status: value })}
-          w={160}
+          w={140}
         />
         <TextInput
           className="rounded outline-none"
@@ -124,7 +179,7 @@ export function CandidatesListView() {
           placeholder="Name or email"
           value={q ?? ''}
           onChange={(e) => setParams({ q: e.currentTarget.value || null })}
-          w={200}
+          w={180}
         />
         <NumberInput
           className="rounded outline-none"
@@ -134,7 +189,7 @@ export function CandidatesListView() {
           onChange={(value) =>
             setParams({ min_score: value === '' || value == null ? null : String(value) })
           }
-          w={120}
+          w={110}
         />
         <NumberInput
           className="rounded outline-none"
@@ -146,26 +201,38 @@ export function CandidatesListView() {
               min_experience: value === '' || value == null ? null : String(value),
             })
           }
-          w={120}
+          w={110}
         />
-        {filtersActive ? (
-          <MotionButton
-            className="cursor-pointer rounded-lg"
-            aria-label="Clear candidate filters"
-            variant="default"
-            onClick={() => router.push(pathname)}
-          >
-            Clear
-          </MotionButton>
-        ) : null}
-      </Group>
+      </FilterBar>
 
       {error ? (
         <ErrorState title="Could not load candidates" message={error.message} />
+      ) : !isLoading && (data?.rows?.length ?? 0) === 0 ? (
+        <EmptyState
+          title={filtersActive ? 'No matches for these filters' : 'No candidates yet'}
+          description={
+            filtersActive
+              ? 'Try clearing filters or adjusting search.'
+              : 'Candidates appear here when they apply to a job.'
+          }
+          action={
+            filtersActive ? (
+              <MotionButton
+                className="cursor-pointer rounded-lg"
+                aria-label="Clear filters to see all candidates"
+                variant="light"
+                onClick={clearAll}
+              >
+                Clear filters
+              </MotionButton>
+            ) : null
+          }
+        />
       ) : (
         <DataTable
+          className="hr-data-table"
           withTableBorder
-          borderRadius="sm"
+          borderRadius="md"
           highlightOnHover
           minHeight={200}
           fetching={isLoading}
@@ -174,51 +241,71 @@ export function CandidatesListView() {
           columns={[
             {
               accessor: 'full_name',
-              title: 'Name',
+              title: 'Candidate',
               render: (row) => (
-                <Link
-                  href={`/hr/candidates/${row.application_id}`}
-                  aria-label={`Open candidate ${row.full_name}`}
-                >
-                  {row.full_name}
-                </Link>
+                <Group gap="sm" wrap="nowrap">
+                  <CandidateAvatar name={row.full_name} size={32} />
+                  <Stack gap={0} style={{ minWidth: 0 }}>
+                    <Text
+                      component={Link}
+                      href={`/hr/candidates/${row.application_id}`}
+                      aria-label={`Open candidate ${row.full_name}`}
+                      fw={600}
+                      size="sm"
+                      c="accent"
+                      style={{ textDecoration: 'none' }}
+                      lineClamp={1}
+                    >
+                      {row.full_name}
+                    </Text>
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {row.email}
+                    </Text>
+                  </Stack>
+                </Group>
               ),
             },
-            { accessor: 'email', title: 'Email' },
-            { accessor: 'job_title', title: 'Job' },
+            {
+              accessor: 'job_title',
+              title: 'Role',
+              render: (row) => (
+                <Text size="sm" lineClamp={1}>
+                  {row.job_title}
+                </Text>
+              ),
+            },
             {
               accessor: 'stage',
               title: 'Stage',
-              width: 180,
+              width: 200,
               render: (row) => (
-                <Stack gap={0}>
+                <Stack gap={4}>
                   <StageRail stage={row.stage as Stage} size="sm" />
-                  <Text size="xs" c="dimmed" mt={density.stageRail.labelOffset}>
-                    {stageLabel(row.stage as Stage)}
-                  </Text>
+                  <StageBadge stage={row.stage as Stage} />
                 </Stack>
               ),
             },
             {
               accessor: 'status',
               title: 'Status',
-              render: (row) => (
-                <Text size="sm">{labelOf(STATUS, row.status as Status)}</Text>
-              ),
+              render: (row) => <ApplicationStatusBadge status={row.status as Status} />,
             },
             {
               accessor: 'screening_score',
               title: 'Score',
+              width: 80,
               render: (row) =>
                 row.screening_pending ? (
                   <ScreeningPendingCell />
                 ) : (
-                  <Text size="sm">{row.screening_score ?? '—'}</Text>
+                  <Text size="sm" fw={600}>
+                    {row.screening_score ?? '—'}
+                  </Text>
                 ),
             },
             {
               accessor: 'recommendation',
-              title: 'AI rec',
+              title: 'Match',
               render: (row) =>
                 row.screening_pending ? (
                   <ScreeningPendingCell />
@@ -231,11 +318,16 @@ export function CandidatesListView() {
             {
               accessor: 'created_at',
               title: 'Applied',
-              render: (row) => datetime(row.created_at),
+              render: (row) => (
+                <Text size="sm" c="dimmed">
+                  {datetime(row.created_at)}
+                </Text>
+              ),
             },
             {
               accessor: 'actions',
-              title: 'Actions',
+              title: '',
+              width: 56,
               render: (row) => (
                 <CandidateRowActions
                   applicationId={row.application_id}
@@ -249,23 +341,9 @@ export function CandidatesListView() {
           recordsPerPage={pageSize}
           page={page}
           onPageChange={(nextPage) => setParams({ page: String(nextPage) }, false)}
-          noRecordsText={
-            filtersActive ? 'No matches for these filters' : 'No candidates yet'
-          }
+          noRecordsText=""
         />
       )}
-
-      {filtersActive && data && data.total === 0 ? (
-        <MotionButton
-          className="cursor-pointer rounded-lg"
-          aria-label="Clear filters to see all candidates"
-          variant="light"
-          w="fit-content"
-          onClick={() => router.push(pathname)}
-        >
-          Clear filters
-        </MotionButton>
-      ) : null}
     </Stack>
   );
 }

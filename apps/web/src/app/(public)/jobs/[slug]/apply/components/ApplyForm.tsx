@@ -2,15 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Paper, Stack } from '@mantine/core';
+import { Paper, Stack } from '@mantine/core';
 import { schemaResolver, useForm } from '@mantine/form';
 import dayjs from 'dayjs';
 import { z } from 'zod';
 import { CvUpload } from '@/components/CvUpload';
+import { MotionButton } from '@/components/MotionButton';
 import { ApiError } from '@/lib/api';
 import { useSubmitApplication } from '@/hooks/useSubmitApplication';
 import { toastError, toastSuccess } from '@/lib/toast';
-import { density, palette } from '@/theme';
+import { density, palette, shadows } from '@/theme';
 import type { ApplicationCvInput, PublicJobDetail, PublicJobQuestion } from '@/types/api';
 import { ApplyFormBlock } from './ApplyFormBlock';
 import { ApplyHeader } from './ApplyHeader';
@@ -226,10 +227,10 @@ export function ApplyForm({
       <Paper
         p={{ base: 'md', sm: 'xl' }}
         radius="lg"
-        shadow="md"
         style={{
-          background: '#FFFFFF',
-          border: `1px solid ${palette.ink}12`,
+          background: palette.surface,
+          border: `1px solid ${palette.border}`,
+          boxShadow: shadows.md,
         }}
       >
         <form onSubmit={form.onSubmit(handleSubmit)}>
@@ -257,7 +258,7 @@ export function ApplyForm({
               />
             </ApplyFormBlock>
 
-            <Button
+            <MotionButton
               type="submit"
               className="cursor-pointer rounded-lg"
               aria-label={`Submit application for ${job.title}`}
@@ -265,7 +266,7 @@ export function ApplyForm({
               disabled={uploading || submitting || (job.cv_required && !cv)}
             >
               Submit application
-            </Button>
+            </MotionButton>
           </Stack>
         </form>
       </Paper>
