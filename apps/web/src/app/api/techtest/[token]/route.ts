@@ -29,7 +29,7 @@ export async function GET(
     const sitting = resolved.data;
 
     const questions = await query<CandidateQuestion>(
-      `SELECT id, order_index, type, prompt, options, language, max_score
+      `SELECT id, order_index, type, prompt, options, language, max_score, answer_mode
        FROM HRSYSTEM_assessment_questions
        WHERE assessment_id = $1
        ORDER BY order_index ASC, id ASC`,

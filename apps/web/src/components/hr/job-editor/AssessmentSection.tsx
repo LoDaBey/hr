@@ -3,9 +3,11 @@
 import {
   Button,
   Group,
+  List,
   NumberInput,
   Paper,
   Radio,
+  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -14,6 +16,7 @@ import {
 } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
 import { CheckboxReveal } from '@/components/hr/job-editor/CheckboxReveal';
+import { techTestRulesList } from '@/lib/tech-test-rules';
 import { density, palette } from '@/theme';
 import type { AssessmentDraft, AssessmentQuestionDraft } from '@/types/job-editor';
 import {
@@ -39,6 +42,7 @@ export function createEmptyAssessmentQuestion(): AssessmentQuestionDraft {
     options: ['', ''],
     correct_index: null,
     language: null,
+    answer_mode: 'written',
   };
 }
 
@@ -115,6 +119,7 @@ export function assessmentDraftFromDetail(detail: {
         options: parsed.options,
         correct_index,
         language: q.language,
+        answer_mode: q.answer_mode === 'spoken' ? 'spoken' : 'written',
       };
     }),
   };
@@ -124,7 +129,10 @@ export function optionKeyAt(index: number): string {
   return String.fromCharCode(97 + index);
 }
 
-export function serializeAssessmentQuestions(questions: AssessmentQuestionDraft[]) {
+export function serializeAssessmentQuestions(
+  questions: AssessmentQuestionDraft[],
+  kind: AssessmentKind = 'ASSESSMENT',
+) {
   return questions.map((q) => {
     const base = {
       type: q.type,
@@ -132,6 +140,8 @@ export function serializeAssessmentQuestions(questions: AssessmentQuestionDraft[
       max_score: Math.max(1, Number(q.max_score) || 10),
       rubric: q.rubric.trim() || undefined,
       language: q.type === 'CODING' || q.type === 'SQL' ? q.language : null,
+      answer_mode:
+        kind === 'TECH_TEST' && q.answer_mode === 'spoken' ? ('spoken' as const) : ('written' as const),
     };
     if (q.type !== 'MCQ') {
       return { ...base, options: [] };
@@ -257,16 +267,31 @@ export function AssessmentSection({
             checked={value.require_screen_share}
             onCheckedChange={(checked) => update({ require_screen_share: checked })}
           />
-          <Textarea
-            className="rounded outline-none"
-            label="Rules"
-            description="Shown to the candidate before they start. One rule per line."
-            aria-label="Tech test rules for the candidate"
-            minRows={4}
-            placeholder={'Stay in fullscreen for the whole session\nDo not switch tabs\nKeep your camera and microphone on'}
-            value={value.rules}
-            onChange={(e) => update({ rules: e.currentTarget.value })}
-          />
+          <Stack gap={6}>
+            <Text size="sm" fw={500}>
+              Rules
+            </Text>
+            <Text size="xs" style={{ color: palette.muted }}>
+              Shown to the candidate before they start. These follow your settings above.
+            </Text>
+            <List
+              size="sm"
+              spacing={4}
+              withPadding
+              styles={{
+                itemWrapper: { color: palette.muted },
+              }}
+            >
+              {techTestRulesList({
+                require_camera: value.require_camera,
+                require_mic: value.require_mic,
+                require_fullscreen: value.require_fullscreen,
+                require_screen_share: value.require_screen_share,
+              }).map((rule) => (
+                <List.Item key={rule}>{rule}</List.Item>
+              ))}
+            </List>
+          </Stack>
         </Stack>
       ) : null}
 
@@ -334,6 +359,32 @@ export function AssessmentSection({
               value={q.prompt}
               onChange={(e) => updateQuestion(index, { prompt: e.currentTarget.value })}
             />
+
+            {isTechTest ? (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Answer mode
+                </Text>
+                <SegmentedControl
+                  className="rounded outline-none"
+                  aria-label={`Answer mode for question ${index + 1}`}
+                  data={[
+                    { label: 'Written answer', value: 'written' },
+                    { label: 'Spoken answer', value: 'spoken' },
+                  ]}
+                  value={q.answer_mode}
+                  onChange={(next) =>
+                    updateQuestion(index, {
+                      answer_mode: next === 'spoken' ? 'spoken' : 'written',
+                    })
+                  }
+                />
+                <Text size="xs" style={{ color: palette.muted }}>
+                  Spoken answers are transcribed from the recording and graded the same way. No
+                  typing.
+                </Text>
+              </Stack>
+            ) : null}
 
             <Textarea
               className="rounded outline-none"

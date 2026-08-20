@@ -2,7 +2,7 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import type { PoolClient, QueryResultRow } from 'pg';
 import { resolveToken } from '@/lib/assessment-token';
-import { tx } from '@/lib/db';
+import { one, tx } from '@/lib/db';
 import { jsonError, jsonOk } from '@/lib/http';
 import { evaluateTechTest } from '@/lib/pipeline/grading';
 import type { TechTestSubmitResult } from '@/types/api';
@@ -237,7 +237,19 @@ export async function POST(
     }
 
     after(() => {
-      void evaluateTechTest(result.sittingId, { expectedStatus: 'SUBMITTED' }).catch((error) => {
+      void (async () => {
+        // recording.grade needs up to 90s — leave spoken sittings to the pipeline sweep
+        // (submit route maxDuration is 60s).
+        const spoken = await one<{ count: number }>(
+          `SELECT count(*)::int AS count
+           FROM HRSYSTEM_assessment_questions q
+           JOIN HRSYSTEM_candidate_assessments ca ON ca.assessment_id = q.assessment_id
+           WHERE ca.id = $1 AND q.answer_mode = 'spoken'`,
+          [result.sittingId],
+        );
+        if (spoken && spoken.count > 0) return;
+        await evaluateTechTest(result.sittingId, { expectedStatus: 'SUBMITTED' });
+      })().catch((error) => {
         console.error('evaluateTechTest failed', error);
       });
     });

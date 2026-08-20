@@ -14,6 +14,15 @@ const bodySchema = z.object({
       time_spent_seconds: z.number().int().nonnegative().optional(),
     }),
   ),
+  spoken_question_timings: z
+    .array(
+      z.object({
+        question_id: z.string().uuid(),
+        shown_at: z.string().min(1),
+        left_at: z.string().min(1),
+      }),
+    )
+    .optional(),
 });
 
 export async function POST(
@@ -34,6 +43,7 @@ export async function POST(
 
   const parsed = bodySchema.safeParse(raw);
   const answers = parsed.success ? parsed.data.answers : [];
+  const timings = parsed.success ? parsed.data.spoken_question_timings : undefined;
 
   try {
     const resolved = await resolveToken(token, 'TECH_TEST');
@@ -67,6 +77,19 @@ export async function POST(
         saved += 1;
       } catch (error) {
         console.error('techtest save row failed', error);
+      }
+    }
+
+    if (timings && timings.length > 0) {
+      try {
+        await pool.query(
+          `UPDATE HRSYSTEM_candidate_assessments
+           SET spoken_question_timings = $2::jsonb, updated_at = now()
+           WHERE id = $1`,
+          [resolved.data.sitting_id, JSON.stringify(timings)],
+        );
+      } catch (error) {
+        console.error('techtest save timings failed', error);
       }
     }
 

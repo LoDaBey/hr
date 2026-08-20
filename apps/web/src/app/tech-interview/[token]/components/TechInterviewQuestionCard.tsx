@@ -1,6 +1,6 @@
 'use client';
 
-import { Group, Paper, Progress, Stack, Text } from '@mantine/core';
+import { Badge, Group, Paper, Progress, Stack, Text } from '@mantine/core';
 import {
   AssessmentQuestionInput,
 } from '@/app/assessment/[token]/components/AssessmentQuestionInput';
@@ -25,6 +25,7 @@ export function TechInterviewQuestionCard({
   onPasteDetected?: (charCount?: number) => void;
 }) {
   const progress = total > 0 ? Math.round(((index + 1) / total) * 100) : 0;
+  const spoken = question.answer_mode === 'spoken';
 
   return (
     <Paper
@@ -62,16 +63,35 @@ export function TechInterviewQuestionCard({
           />
         </Stack>
 
-        <Text fw={600} style={{ whiteSpace: 'pre-wrap', color: palette.ink }}>
+        <Text
+          fw={600}
+          style={{
+            whiteSpace: 'pre-wrap',
+            color: palette.ink,
+            fontSize: spoken ? '1.25rem' : undefined,
+            lineHeight: spoken ? 1.45 : undefined,
+          }}
+        >
           {question.prompt}
         </Text>
 
-        <AssessmentQuestionInput
-          question={question}
-          value={value}
-          onChange={onChange}
-          onPasteDetected={onPasteDetected}
-        />
+        {spoken ? (
+          <Stack gap="sm" align="flex-start">
+            <Text size="md" style={{ color: palette.muted }}>
+              Answer out loud. Your recording is capturing this.
+            </Text>
+            <Badge color="accent" variant="light" size="lg" aria-live="polite">
+              Listening — speak your answer
+            </Badge>
+          </Stack>
+        ) : (
+          <AssessmentQuestionInput
+            question={question}
+            value={value}
+            onChange={onChange}
+            onPasteDetected={onPasteDetected}
+          />
+        )}
       </Stack>
     </Paper>
   );

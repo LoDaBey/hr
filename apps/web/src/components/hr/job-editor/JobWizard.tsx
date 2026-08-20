@@ -18,6 +18,7 @@ import { rememberQuestions } from '@/lib/question-library';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { assignQuestionKeys } from '@/lib/question-key';
 import { publicJobUrl } from '@/lib/public-job-url';
+import { techTestRulesFromDraft } from '@/lib/tech-test-rules';
 import { density } from '@/theme';
 import type {
   HrJobsAssessmentSetResult,
@@ -422,8 +423,9 @@ export function JobWizard({
         require_mic: draft.require_mic,
         require_fullscreen: draft.require_fullscreen,
         require_screen_share: draft.require_screen_share,
-        rules: draft.rules.trim() || null,
-        questions: serializeAssessmentQuestions(draft.questions),
+        rules:
+          kind === 'TECH_TEST' ? techTestRulesFromDraft(draft) : draft.rules.trim() || null,
+        questions: serializeAssessmentQuestions(draft.questions, kind),
       },
     });
   }

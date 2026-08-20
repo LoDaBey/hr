@@ -205,6 +205,7 @@ type AssessmentSittingRow = {
 type TechTestSittingRow = AssessmentSittingRow & {
   recording_status: RecordingStatus | null;
   preflight_external_display: boolean | null;
+  transcript: string | null;
 };
 
 export async function getHrCandidateDetail(
@@ -291,7 +292,7 @@ export async function getHrCandidateDetail(
     one<TechTestSittingRow>(
       `SELECT id, status, invite_deadline, duration_minutes,
               started_at, expires_at, submitted_at, late, ai_score, ai_max_score,
-              assessment_id, recording_status, preflight_external_display
+              assessment_id, recording_status, preflight_external_display, transcript
        FROM HRSYSTEM_candidate_assessments
        WHERE application_id = $1
          AND kind = 'TECH_TEST'
@@ -502,8 +503,9 @@ export async function getHrCandidateDetail(
             options: unknown;
             language: string | null;
             max_score: number;
+            answer_mode: import('@/types/domain').AnswerMode;
           }>(
-            `SELECT id, order_index, type, prompt, options, language, max_score
+            `SELECT id, order_index, type, prompt, options, language, max_score, answer_mode
              FROM HRSYSTEM_assessment_questions
              WHERE assessment_id = $1
              ORDER BY order_index ASC, id ASC`,
@@ -605,6 +607,7 @@ export async function getHrCandidateDetail(
           proctoring_summary: raw?.proctoring_summary ?? null,
           preflight_external_display: sitting.preflight_external_display,
           recording: recordingPayload,
+          transcript: sitting.transcript,
           events: eventRows,
           questions: questions.map((q) => {
             const ev = evalByQ.get(q.id);
@@ -616,6 +619,7 @@ export async function getHrCandidateDetail(
               options: q.options,
               language: q.language,
               max_score: q.max_score,
+              answer_mode: q.answer_mode,
               answer: answersByQ.get(q.id) ?? null,
               evaluation: ev
                 ? {

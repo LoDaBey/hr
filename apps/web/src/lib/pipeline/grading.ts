@@ -1,4 +1,5 @@
 import 'server-only';
+import { recordingAudioUrl } from '@/lib/cloudinary';
 import { runAutomation } from '@/lib/automation';
 import { one, query, tx } from '@/lib/db';
 import {
@@ -11,8 +12,12 @@ import {
   insertWorkflowError,
   resolveGradingErrorsForSitting,
 } from '@/lib/repos/workflow-errors';
-import type { AssessmentGradeData, AssessmentGradeResultItem } from '@/types/api';
-import type { QuestionType, Stage } from '@/types/domain';
+import type {
+  AssessmentGradeData,
+  AssessmentGradeResultItem,
+  RecordingGradeData,
+} from '@/types/api';
+import type { AnswerMode, QuestionType, Stage } from '@/types/domain';
 
 type SittingRow = {
   id: string;
@@ -23,6 +28,8 @@ type SittingRow = {
   candidate_id: string;
   job_id: string;
   stage: Stage;
+  recording_status?: string | null;
+  spoken_question_timings?: unknown;
 };
 
 type QuestionRow = {
@@ -33,6 +40,7 @@ type QuestionRow = {
   rubric: string | null;
   max_score: number;
   order_index: number;
+  answer_mode?: AnswerMode;
 };
 
 type AnswerRow = {
@@ -116,7 +124,19 @@ function answerKey(answer: unknown): string | null {
   return null;
 }
 
+function isSpokenAnswer(answer: unknown): boolean {
+  return Boolean(
+    answer &&
+      typeof answer === 'object' &&
+      (answer as { mode?: unknown }).mode === 'spoken',
+  );
+}
+
 function isAnswered(answer: unknown): boolean {
+  if (isSpokenAnswer(answer)) {
+    const left = (answer as { left_at?: unknown }).left_at;
+    return typeof left === 'string' && left.length > 0;
+  }
   return answerText(answer) !== '' || answerKey(answer) != null;
 }
 
@@ -594,6 +614,7 @@ export async function evaluateTechTest(
 ): Promise<void> {
   const sitting = await one<SittingRow>(
     `SELECT ca.id, ca.application_id, ca.assessment_id, ca.kind, ca.status,
+            ca.recording_status, ca.spoken_question_timings,
             a.candidate_id, a.job_id, a.stage
      FROM HRSYSTEM_candidate_assessments ca
      JOIN HRSYSTEM_applications a ON a.id = ca.application_id
@@ -631,7 +652,7 @@ export async function evaluateTechTest(
   }
 
   const questions = await query<QuestionRow>(
-    `SELECT id, type, prompt, correct_key, rubric, max_score, order_index
+    `SELECT id, type, prompt, correct_key, rubric, max_score, order_index, answer_mode
      FROM HRSYSTEM_assessment_questions
      WHERE assessment_id = $1
      ORDER BY order_index ASC, id ASC`,
@@ -666,12 +687,47 @@ export async function evaluateTechTest(
   }
 
   const answersByQ = new Map(answerRows.map((r) => [r.question_id, r.answer]));
+  const timingsRaw = Array.isArray(sitting.spoken_question_timings)
+    ? sitting.spoken_question_timings
+    : [];
+  const timingsByQ = new Map<string, { shown_at: string | null; left_at: string | null }>();
+  for (const row of timingsRaw) {
+    if (!row || typeof row !== 'object') continue;
+    const item = row as { question_id?: unknown; shown_at?: unknown; left_at?: unknown };
+    if (typeof item.question_id !== 'string') continue;
+    timingsByQ.set(item.question_id, {
+      shown_at: typeof item.shown_at === 'string' ? item.shown_at : null,
+      left_at: typeof item.left_at === 'string' ? item.left_at : null,
+    });
+  }
+  for (const [qid, answer] of answersByQ) {
+    if (!isSpokenAnswer(answer) || timingsByQ.has(qid)) continue;
+    const spoken = answer as { shown_at?: unknown; left_at?: unknown };
+    timingsByQ.set(qid, {
+      shown_at: typeof spoken.shown_at === 'string' ? spoken.shown_at : null,
+      left_at: typeof spoken.left_at === 'string' ? spoken.left_at : null,
+    });
+  }
+
+  const spokenQuestions = questions.filter((q) => (q.answer_mode ?? 'written') === 'spoken');
+  const writtenQuestions = questions.filter((q) => (q.answer_mode ?? 'written') !== 'spoken');
+
+  if (spokenQuestions.length > 0 && sitting.recording_status !== 'READY') {
+    await recordGradingFailure(
+      sitting,
+      sittingId,
+      'evaluateTechTest',
+      'Spoken answers could not be graded — recording unavailable',
+      'Spoken answers could not be graded — recording unavailable',
+    );
+    return;
+  }
 
   const mcqEvals: PerQuestionEval[] = [];
   const openForAi: Array<{ question: QuestionRow; answer: unknown }> = [];
   const unansweredOpen: PerQuestionEval[] = [];
 
-  for (const q of questions) {
+  for (const q of writtenQuestions) {
     const answer = answersByQ.get(q.id);
     if (q.type === 'MCQ') {
       mcqEvals.push(scoreMcq(q, answer));
@@ -684,7 +740,7 @@ export async function evaluateTechTest(
     openForAi.push({ question: q, answer });
   }
 
-  const openQuestions = questions.filter((q) => q.type !== 'MCQ');
+  const openQuestions = writtenQuestions.filter((q) => q.type !== 'MCQ');
   const answeredOpenInDb = openQuestions.filter((q) => isAnswered(answersByQ.get(q.id)));
   if (openQuestions.length > 0 && answeredOpenInDb.length > 0 && openForAi.length === 0) {
     await recordGradingFailure(
@@ -698,6 +754,60 @@ export async function evaluateTechTest(
   }
 
   const aiByQuestion = new Map<string, AssessmentGradeResultItem>();
+  let transcript: string | null = null;
+
+  if (spokenQuestions.length > 0) {
+    const recording = await one<{ public_id: string }>(
+      `SELECT public_id FROM HRSYSTEM_recordings
+       WHERE candidate_assessment_id = $1
+       ORDER BY part_no DESC
+       LIMIT 1`,
+      [sittingId],
+    );
+    if (!recording?.public_id) {
+      await recordGradingFailure(
+        sitting,
+        sittingId,
+        'evaluateTechTest',
+        'Spoken answers could not be graded — recording unavailable',
+        'Spoken answers could not be graded — recording unavailable',
+      );
+      return;
+    }
+
+    const { url: audioUrl } = recordingAudioUrl(recording.public_id);
+    const spokenResult = await runAutomation<RecordingGradeData>('recording.grade', {
+      audio_url: audioUrl,
+      questions: spokenQuestions.map((question) => {
+        const timing = timingsByQ.get(question.id);
+        return {
+          question_id: question.id,
+          prompt: question.prompt,
+          rubric: question.rubric,
+          max_score: question.max_score,
+          shown_at: timing?.shown_at ?? null,
+          left_at: timing?.left_at ?? null,
+        };
+      }),
+    });
+
+    if (!spokenResult.ok) {
+      await recordGradingFailure(
+        sitting,
+        sittingId,
+        'evaluateTechTest',
+        spokenResult.error.message || 'recording.grade returned ok: false',
+        `Grading failed — recording grading error: ${spokenResult.error.message || 'unknown'}`,
+      );
+      return;
+    }
+
+    transcript =
+      typeof spokenResult.data.transcript === 'string' ? spokenResult.data.transcript : null;
+    for (const item of spokenResult.data.results ?? []) {
+      aiByQuestion.set(item.question_id, item);
+    }
+  }
 
   if (openForAi.length > 0) {
     const result = await runAutomation<AssessmentGradeData>('assessment.grade', {
@@ -741,8 +851,11 @@ export async function evaluateTechTest(
   const openEvals: PerQuestionEval[] = openForAi.map(({ question }) =>
     mapAiResult(question, aiByQuestion.get(question.id)),
   );
+  const spokenEvals: PerQuestionEval[] = spokenQuestions.map((question) =>
+    mapAiResult(question, aiByQuestion.get(question.id)),
+  );
 
-  const allEvals = [...mcqEvals, ...unansweredOpen, ...openEvals];
+  const allEvals = [...mcqEvals, ...unansweredOpen, ...openEvals, ...spokenEvals];
   const sumScore = allEvals.reduce((s, e) => s + e.score, 0);
   const sumMax = allEvals.reduce((s, e) => s + e.max_score, 0);
   const totalPct = sumMax > 0 ? Math.round((sumScore / sumMax) * 1000) / 10 : 0;
@@ -785,7 +898,9 @@ export async function evaluateTechTest(
           JSON.stringify(ev.technical_errors),
           ev.feedback,
           ev.confidence,
-          'assessment.grade',
+          spokenQuestions.some((q) => q.id === ev.question_id)
+            ? 'recording.grade'
+            : 'assessment.grade',
           ev.raw_response == null ? null : JSON.stringify(ev.raw_response),
         ],
       );
@@ -807,7 +922,7 @@ export async function evaluateTechTest(
         sumMax,
         overallFeedback,
         1,
-        'assessment.grade',
+        spokenQuestions.length > 0 ? 'recording.grade+assessment.grade' : 'assessment.grade',
         JSON.stringify({
           total_pct: totalPct,
           ai_failed: false,
@@ -820,9 +935,11 @@ export async function evaluateTechTest(
 
     await client.query(
       `UPDATE HRSYSTEM_candidate_assessments
-       SET ai_score = $2, ai_max_score = $3, updated_at = now()
+       SET ai_score = $2, ai_max_score = $3,
+           transcript = COALESCE($4, transcript),
+           updated_at = now()
        WHERE id = $1`,
-      [sittingId, Math.round(totalPct), 100],
+      [sittingId, Math.round(totalPct), 100, transcript],
     );
 
     await client.query(
@@ -854,6 +971,7 @@ export async function evaluateTechTest(
           ai_failed: false,
           proctoring_flag: proctor.flag,
           proctoring_summary: proctor.summary,
+          has_spoken: spokenQuestions.length > 0,
         }),
       ],
     );

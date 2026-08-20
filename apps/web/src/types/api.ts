@@ -195,6 +195,7 @@ export interface CandidateQuestion {
   options: unknown;
   language: string | null;
   max_score: number;
+  answer_mode: 'written' | 'spoken';
 }
 
 export interface CandidateAssessmentGetResult {
@@ -502,6 +503,7 @@ export interface HrCandidatesGetResult {
         ended_at: string | null;
         signed_url: string | null;
       } | null;
+      transcript: string | null;
       events: Array<{
         id: string;
         event: string;
@@ -517,6 +519,7 @@ export interface HrCandidatesGetResult {
         options: unknown;
         language: string | null;
         max_score: number;
+        answer_mode?: 'written' | 'spoken';
         answer: unknown;
         evaluation: {
           score: number | null;
@@ -777,6 +780,7 @@ export interface HrJobsAssessmentSetPayload {
     language?: string | null;
     max_score: number;
     rubric?: string;
+    answer_mode?: 'written' | 'spoken';
   }>;
 }
 
@@ -831,7 +835,12 @@ export type RpcEnvelope = {
   idempotency_key?: string;
 };
 
-export type AutomationTask = 'cv.parse' | 'screening.run' | 'assessment.grade' | 'email.send';
+export type AutomationTask =
+  | 'cv.parse'
+  | 'screening.run'
+  | 'assessment.grade'
+  | 'email.send'
+  | 'recording.grade';
 
 export interface AutomationError {
   code: string;
@@ -904,6 +913,20 @@ export interface AssessmentGradeResultItem {
 }
 
 export interface AssessmentGradeData {
+  results: AssessmentGradeResultItem[];
+}
+
+export interface RecordingGradeQuestion {
+  question_id: string;
+  prompt: string;
+  rubric: string | null;
+  max_score: number;
+  shown_at: string | null;
+  left_at: string | null;
+}
+
+export interface RecordingGradeData {
+  transcript: string;
   results: AssessmentGradeResultItem[];
 }
 

@@ -285,6 +285,8 @@ export interface CandidateAssessment {
   updated_at: string;
 }
 
+export type AnswerMode = 'written' | 'spoken';
+
 export interface AssessmentQuestion {
   id: string;
   assessment_id: string;
@@ -296,6 +298,7 @@ export interface AssessmentQuestion {
   language: string | null;
   max_score: number;
   rubric: string | null;
+  answer_mode: AnswerMode;
 }
 
 export interface Evaluation {

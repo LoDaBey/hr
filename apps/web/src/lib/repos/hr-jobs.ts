@@ -511,9 +511,9 @@ export async function replaceJobAssessment(
     for (const [index, q] of input.questions.entries()) {
       await client.query(
         `INSERT INTO HRSYSTEM_assessment_questions (
-           assessment_id, order_index, type, prompt, options, correct_key, language, max_score, rubric
+           assessment_id, order_index, type, prompt, options, correct_key, language, max_score, rubric, answer_mode
          )
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10)`,
         [
           assessment.id,
           index,
@@ -524,6 +524,7 @@ export async function replaceJobAssessment(
           q.language ?? null,
           q.max_score,
           q.rubric ?? null,
+          input.kind === 'TECH_TEST' && q.answer_mode === 'spoken' ? 'spoken' : 'written',
         ],
       );
     }

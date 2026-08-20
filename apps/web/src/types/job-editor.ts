@@ -142,6 +142,8 @@ export type AssessmentQuestionDraft = {
   options: string[];
   correct_index: number | null;
   language: string | null;
+  /** TECH_TEST only; assessments stay written. */
+  answer_mode: 'written' | 'spoken';
 };
 
 export type AssessmentDraft = {

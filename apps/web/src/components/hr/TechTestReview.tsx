@@ -33,6 +33,7 @@ export type TechTestReviewData = AssessmentReviewData & {
     ended_at: string | null;
     signed_url: string | null;
   } | null;
+  transcript?: string | null;
   proctoring_flag: 'CLEAN' | 'MINOR_FLAGS' | 'REVIEW_RECORDING' | null;
   proctoring_summary: string | null;
   preflight_external_display: boolean | null;
@@ -141,6 +142,17 @@ export function TechTestReview({
                 : '.'}
             </Text>
           )}
+
+          {review.transcript ? (
+            <Stack gap={4}>
+              <Text size="sm" fw={600}>
+                Transcript
+              </Text>
+              <Text size="sm" style={{ whiteSpace: 'pre-wrap', color: palette.ink, lineHeight: 1.55 }}>
+                {review.transcript}
+              </Text>
+            </Stack>
+          ) : null}
         </Stack>
       </Paper>
 

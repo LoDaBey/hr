@@ -157,7 +157,9 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_assessment_questions (
   correct_key   text,                                 -- MCQ auto-scoring; NEVER sent to candidate
   language      text,                                 -- CODING: js/py/sql...
   max_score     int NOT NULL DEFAULT 10,
-  rubric        text                                  -- fed to the AI evaluator
+  rubric        text,                                 -- fed to the AI evaluator
+  answer_mode   text NOT NULL DEFAULT 'written'
+                CHECK (answer_mode IN ('written', 'spoken'))  -- TECH_TEST: spoken = answer to camera
 );
 CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_aq_assessment ON HRSYSTEM_assessment_questions(assessment_id, order_index);
 
@@ -294,6 +296,8 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_candidate_assessments (
   reminder_sent_at  timestamptz,
   grading_attempts  int NOT NULL DEFAULT 0,
   preflight_external_display boolean,
+  spoken_question_timings jsonb NOT NULL DEFAULT '[]'::jsonb, -- [{question_id, shown_at, left_at}]
+  transcript        text,                             -- from recording.grade
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now()
 );

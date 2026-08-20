@@ -22,6 +22,7 @@ export type AssessmentReviewQuestion = {
   options: unknown;
   language: string | null;
   max_score: number;
+  answer_mode?: 'written' | 'spoken';
   answer: unknown;
   evaluation: {
     score: number | null;
@@ -52,7 +53,10 @@ function asList(value: unknown): string[] {
   return value.map((item) => (typeof item === 'string' ? item : JSON.stringify(item)));
 }
 
-function answerDisplay(answer: unknown, type: QuestionType): string {
+function answerDisplay(answer: unknown, type: QuestionType, answerMode?: 'written' | 'spoken'): string {
+  if (answerMode === 'spoken' || (answer && typeof answer === 'object' && (answer as { mode?: unknown }).mode === 'spoken')) {
+    return 'Answered aloud (see transcript)';
+  }
   if (answer == null) return '—';
   if (typeof answer === 'string') return answer;
   if (typeof answer === 'object') {
@@ -254,7 +258,7 @@ export function AssessmentReview({
       <SimpleGrid cols={{ base: 1, md: 2, lg: 3 }} spacing="md">
         {review.questions.map((q, index) => {
           const ev = q.evaluation;
-          const text = answerDisplay(q.answer, q.type);
+          const text = answerDisplay(q.answer, q.type, q.answer_mode);
           const isCode = q.type === 'CODING' || q.type === 'SQL';
 
           return (

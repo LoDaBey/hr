@@ -6,6 +6,7 @@ const TASK_TIMEOUT_MS: Record<AutomationTask, number> = {
   'screening.run': 30_000,
   'assessment.grade': 30_000,
   'email.send': 15_000,
+  'recording.grade': 90_000,
 };
 
 function isAutomationResult<T>(value: unknown): value is AutomationResult<T> {
