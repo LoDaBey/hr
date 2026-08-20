@@ -4,28 +4,32 @@ import { use } from 'react';
 import { Alert, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import useSWR from 'swr';
 import { AssessmentSitting } from './components/AssessmentSitting';
+import { CandidateBrandBar } from '@/components/CandidateBrandBar';
 import { ApiError, api } from '@/lib/api';
 import { palette } from '@/theme';
 import type { CandidateAssessmentGetResult } from '@/types/api';
 
 function TokenMessage({ title, message }: { title: string; message: string }) {
   return (
-    <Stack
-      gap="md"
-      maw={480}
-      mx="auto"
-      py="xl"
-      px="md"
-      align="center"
-      style={{ minHeight: '60vh', background: palette.paper }}
-    >
-      <Title order={1} ta="center" style={{ color: palette.ink }}>
-        {title}
-      </Title>
-      <Text ta="center" c="dimmed">
-        {message}
-      </Text>
-    </Stack>
+    <div style={{ minHeight: '100dvh', background: palette.paper }}>
+      <CandidateBrandBar />
+      <Stack
+        gap="md"
+        maw={480}
+        mx="auto"
+        py="xl"
+        px="md"
+        align="center"
+        style={{ minHeight: '60vh' }}
+      >
+        <Title order={1} ta="center" style={{ color: palette.ink }}>
+          {title}
+        </Title>
+        <Text ta="center" c="dimmed">
+          {message}
+        </Text>
+      </Stack>
+    </div>
   );
 }
 
@@ -44,9 +48,12 @@ export default function AssessmentPage({
 
   if (isLoading) {
     return (
-      <Group justify="center" py="xl" style={{ minHeight: '60vh', background: palette.paper }}>
-        <Loader aria-label="Loading assessment" color="accent" />
-      </Group>
+      <div style={{ minHeight: '100dvh', background: palette.paper }}>
+        <CandidateBrandBar />
+        <Group justify="center" py="xl" style={{ minHeight: '60vh' }}>
+          <Loader aria-label="Loading assessment" color="accent" />
+        </Group>
+      </div>
     );
   }
 
@@ -86,6 +93,7 @@ export default function AssessmentPage({
 
   return (
     <div style={{ minHeight: '100vh', background: palette.paper }}>
+      <CandidateBrandBar />
       <AssessmentSitting token={token} initial={data} />
     </div>
   );

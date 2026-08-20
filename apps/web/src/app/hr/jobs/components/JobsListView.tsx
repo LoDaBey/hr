@@ -44,16 +44,6 @@ export function JobsListView() {
         <EmptyState
           title="No jobs yet"
           description="Create a job, add questions, then publish to get a candidate link."
-          action={
-            <MotionButton
-              component={Link}
-              href="/hr/jobs/new"
-              className="cursor-pointer rounded-lg"
-              aria-label="Create new job"
-            >
-              New job
-            </MotionButton>
-          }
         />
       ) : (
         <DataTable

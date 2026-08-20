@@ -18,6 +18,7 @@ import { schemaResolver } from '@mantine/form';
 import { AnimatePresence, motion } from 'framer-motion';
 import { z } from 'zod';
 import { MotionButton } from '@/components/MotionButton';
+import { BrandLogo } from '@/components/BrandLogo';
 import { loginCardVariants, motionTransitionSlow } from '@/lib/motion';
 import { density, palette, shadows } from '@/theme';
 
@@ -104,13 +105,24 @@ export function LoginForm() {
             >
               <form onSubmit={onFormSubmit}>
                 <Stack gap="lg">
-                  <Stack gap={6} align="center">
-                    <Title order={1} ta="center" style={{ fontSize: '1.5rem' }}>
-                      Sign in
-                    </Title>
-                    <Text size="sm" ta="center" style={{ color: palette.muted }}>
-                      Access your recruitment workspace
-                    </Text>
+                  <Stack gap="md" align="center">
+                    <Box
+                      style={{
+                        background: palette.ink,
+                        borderRadius: 10,
+                        padding: '14px 20px',
+                      }}
+                    >
+                      <BrandLogo height={40} priority />
+                    </Box>
+                    <Stack gap={6} align="center">
+                      <Title order={1} ta="center" style={{ fontSize: '1.5rem' }}>
+                        Sign in
+                      </Title>
+                      <Text size="sm" ta="center" style={{ color: palette.muted }}>
+                        Access your recruitment workspace
+                      </Text>
+                    </Stack>
                   </Stack>
 
                   {formError ? (

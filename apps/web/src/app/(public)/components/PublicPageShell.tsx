@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Box, Container } from '@mantine/core';
+import { Box, Container, Group } from '@mantine/core';
+import { BrandLogo } from '@/components/BrandLogo';
 import { density, palette } from '@/theme';
 
 export function PublicPageShell({
@@ -20,13 +21,23 @@ export function PublicPageShell({
       }}
     >
       <Box
+        component="header"
         style={{
-          height: 4,
-          background: palette.accent,
-          width: '100%',
+          background: palette.ink,
+          borderBottom: `1px solid ${palette.ink}`,
         }}
-        aria-hidden
-      />
+      >
+        <Container
+          size={maxWidth}
+          px={{ base: 'md', md: 'lg', xl: 'xl' }}
+          maw={{ base: maxWidth, xl: wide ? 1600 : 1320 }}
+          py="sm"
+        >
+          <Group justify="flex-start" align="center">
+            <BrandLogo height={36} priority />
+          </Group>
+        </Container>
+      </Box>
       <Container
         size={maxWidth}
         py={{ base: 28, md: 40, xl: 48 }}

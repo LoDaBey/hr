@@ -7,6 +7,7 @@ import { RecordingUploadProgress } from './components/RecordingUploadProgress';
 import { SessionDeviceBlockOverlay } from './components/SessionDeviceBlockOverlay';
 import { TechInterviewPreflight } from './components/TechInterviewPreflight';
 import { TechInterviewSitting } from './components/TechInterviewSitting';
+import { CandidateBrandBar } from '@/components/CandidateBrandBar';
 import { MotionButton } from '@/components/MotionButton';
 import { useProctoring } from '@/hooks/useProctoring';
 import { useRecorder } from '@/hooks/useRecorder';
@@ -31,22 +32,25 @@ import type {
 
 function TokenMessage({ title, message }: { title: string; message: string }) {
   return (
-    <Stack
-      gap="md"
-      maw={480}
-      mx="auto"
-      py="xl"
-      px="md"
-      align="center"
-      style={{ minHeight: '60vh', background: palette.paper }}
-    >
-      <Title order={1} ta="center" style={{ color: palette.ink }}>
-        {title}
-      </Title>
-      <Text ta="center" c="dimmed">
-        {message}
-      </Text>
-    </Stack>
+    <div style={{ minHeight: '100dvh', background: palette.paper }}>
+      <CandidateBrandBar />
+      <Stack
+        gap="md"
+        maw={480}
+        mx="auto"
+        py="xl"
+        px="md"
+        align="center"
+        style={{ minHeight: '60vh' }}
+      >
+        <Title order={1} ta="center" style={{ color: palette.ink }}>
+          {title}
+        </Title>
+        <Text ta="center" c="dimmed">
+          {message}
+        </Text>
+      </Stack>
+    </div>
   );
 }
 
@@ -455,9 +459,12 @@ export default function TechInterviewPage({
 
   if (isLoading) {
     return (
-      <Group justify="center" py="xl" style={{ minHeight: '60vh', background: palette.paper }}>
-        <Loader aria-label="Loading interview" color="accent" />
-      </Group>
+      <div style={{ minHeight: '100dvh', background: palette.paper }}>
+        <CandidateBrandBar />
+        <Group justify="center" py="xl" style={{ minHeight: '60vh' }}>
+          <Loader aria-label="Loading interview" color="accent" />
+        </Group>
+      </div>
     );
   }
 
@@ -497,94 +504,104 @@ export default function TechInterviewPage({
 
   if (phase === 'done') {
     return (
-      <Stack
-        gap="md"
-        maw={480}
-        mx="auto"
-        py="xl"
-        px="md"
-        align="center"
-        style={{ minHeight: '60vh', background: palette.paper }}
-      >
-        <Title order={1} ta="center" style={{ color: palette.ink }}>
-          You&apos;re done
-        </Title>
-        <Text ta="center" c="dimmed">
-          Your answers and recording were submitted successfully. You can close this tab — our
-          team will review your session.
-        </Text>
-      </Stack>
+      <div style={{ minHeight: '100dvh', background: palette.paper }}>
+        <CandidateBrandBar />
+        <Stack
+          gap="md"
+          maw={480}
+          mx="auto"
+          py="xl"
+          px="md"
+          align="center"
+          style={{ minHeight: '60vh' }}
+        >
+          <Title order={1} ta="center" style={{ color: palette.ink }}>
+            You&apos;re done
+          </Title>
+          <Text ta="center" c="dimmed">
+            Your answers and recording were submitted successfully. You can close this tab — our
+            team will review your session.
+          </Text>
+        </Stack>
+      </div>
     );
   }
 
   if (phase === 'uploading') {
     return (
-      <Stack
-        gap="md"
-        maw={480}
-        mx="auto"
-        py="xl"
-        px="md"
-        align="center"
-        style={{ minHeight: '100vh', background: palette.paper }}
-      >
-        <Title order={1} ta="center" style={{ color: palette.ink }}>
-          Submitting…
-        </Title>
-        <Text ta="center" c="dimmed">
-          Your answers are saved. Uploading your recording — please keep this tab open.
-        </Text>
-        {uploadProgress ? (
-          <RecordingUploadProgress loaded={uploadProgress.loaded} total={uploadProgress.total} />
-        ) : (
-          <Loader aria-label="Uploading recording" color="accent" />
-        )}
-      </Stack>
+      <div style={{ minHeight: '100dvh', background: palette.paper }}>
+        <CandidateBrandBar />
+        <Stack
+          gap="md"
+          maw={480}
+          mx="auto"
+          py="xl"
+          px="md"
+          align="center"
+          style={{ minHeight: '60vh' }}
+        >
+          <Title order={1} ta="center" style={{ color: palette.ink }}>
+            Submitting…
+          </Title>
+          <Text ta="center" c="dimmed">
+            Your answers are saved. Uploading your recording — please keep this tab open.
+          </Text>
+          {uploadProgress ? (
+            <RecordingUploadProgress loaded={uploadProgress.loaded} total={uploadProgress.total} />
+          ) : (
+            <Loader aria-label="Uploading recording" color="accent" />
+          )}
+        </Stack>
+      </div>
     );
   }
 
   if (phase === 'upload_pending') {
     return (
-      <Stack
-        gap="md"
-        maw={480}
-        mx="auto"
-        py="xl"
-        px="md"
-        align="center"
-        style={{ minHeight: '60vh', background: palette.paper }}
-      >
-        <Title order={1} ta="center" style={{ color: palette.ink }}>
-          Answers saved
-        </Title>
-        <Text ta="center" c="dimmed">
-          Your answers are saved. We couldn&apos;t upload your recording — you can retry, or close
-          this page and our team will follow up.
-        </Text>
-        {uploadProgress ? (
-          <RecordingUploadProgress loaded={uploadProgress.loaded} total={uploadProgress.total} />
-        ) : null}
-        {startError ? (
-          <Alert color="danger" title="Upload error">
-            {startError}
-          </Alert>
-        ) : null}
-        <MotionButton
-          className="cursor-pointer rounded-lg"
-          aria-label="Retry recording upload"
-          color="accent"
-          loading={retrying}
-          disabled={!uploadResume}
-          onClick={() => void handleRetryRecording()}
+      <div style={{ minHeight: '100dvh', background: palette.paper }}>
+        <CandidateBrandBar />
+        <Stack
+          gap="md"
+          maw={480}
+          mx="auto"
+          py="xl"
+          px="md"
+          align="center"
+          style={{ minHeight: '60vh' }}
         >
-          Retry
-        </MotionButton>
-      </Stack>
+          <Title order={1} ta="center" style={{ color: palette.ink }}>
+            Answers saved
+          </Title>
+          <Text ta="center" c="dimmed">
+            Your answers are saved. We couldn&apos;t upload your recording — you can retry, or close
+            this page and our team will follow up.
+          </Text>
+          {uploadProgress ? (
+            <RecordingUploadProgress loaded={uploadProgress.loaded} total={uploadProgress.total} />
+          ) : null}
+          {startError ? (
+            <Alert color="danger" title="Upload error">
+              {startError}
+            </Alert>
+          ) : null}
+          <MotionButton
+            className="cursor-pointer rounded-lg"
+            aria-label="Retry recording upload"
+            color="accent"
+            loading={retrying}
+            disabled={!uploadResume}
+            onClick={() => void handleRetryRecording()}
+          >
+            Retry
+          </MotionButton>
+        </Stack>
+      </div>
     );
   }
 
   return (
     <div style={{ minHeight: '100vh', background: palette.paper }}>
+      <CandidateBrandBar />
       {phase === 'preflight' || !startResult ? (
         <TechInterviewPreflight
           data={data}
