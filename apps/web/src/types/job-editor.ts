@@ -85,6 +85,7 @@ export type JobEditorBasicsValues = {
   vacancies: number | string;
   application_deadline: string | null;
   shortlist_threshold: number | string | null;
+  screening_criteria: string;
   screening_weights: ScreeningWeights;
   cv_required: boolean;
   ask_age: boolean;

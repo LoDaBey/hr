@@ -297,6 +297,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
           min_experience_years: job.min_experience_years,
           education_requirement: job.education_requirement,
           soft_requirements: job.soft_requirements,
+          screening_criteria: job.screening_criteria ?? null,
           screening_weights: job.screening_weights,
           shortlist_threshold: shortlistMinScore,
         },

@@ -170,6 +170,8 @@ export interface Job {
   ask_marital_status: boolean;
   hard_requirements: HardRequirement[];
   soft_requirements: unknown;
+  /** Free-text role criteria for AI screening. Null/empty until HR writes it. */
+  screening_criteria: string | null;
   screening_weights: unknown;
   shortlist_threshold: number | null;
   cv_required: boolean;

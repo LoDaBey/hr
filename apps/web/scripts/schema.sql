@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_jobs (
       --   "value":["Completed","Exempted","Not applicable"],"on_fail":"RECOMMEND_REJECT"}]
       -- Migration 006: op "==" with array value → "in" (see scripts/migrations/006_*.sql)
   soft_requirements      jsonb NOT NULL DEFAULT '[]'::jsonb,
-      -- [{"key":"aws","label":"AWS","weight":10}]
+      -- [{"key":"aws","label":"AWS","weight":10}]  — legacy; editor no longer writes these
+  screening_criteria     text,                        -- free-text "who are you looking for?"
   screening_weights      jsonb NOT NULL DEFAULT
       '{"skills":40,"experience":30,"answers":20,"education":10}'::jsonb,
   shortlist_threshold    int,                         -- null → use settings.auto_shortlist_min_score

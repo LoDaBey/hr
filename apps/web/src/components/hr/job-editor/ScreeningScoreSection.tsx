@@ -12,17 +12,15 @@ const WEIGHT_FIELDS: Array<{
 }> = [
   { key: 'skills', label: 'Skills', description: 'Required and preferred skills vs the CV' },
   { key: 'experience', label: 'Experience', description: 'Years and role history' },
-  { key: 'answers', label: 'Answers', description: 'Application questions and nice-to-haves' },
+  { key: 'answers', label: 'Answers', description: 'Application questions vs the criteria' },
   { key: 'education', label: 'Education', description: 'Education vs the role requirement' },
 ];
 
 export function ScreeningScoreSection({
   form,
-  niceToHaveTotal,
   onDirty,
 }: {
   form: UseFormReturnType<JobEditorBasicsValues>;
-  niceToHaveTotal: number;
   onDirty: () => void;
 }) {
   const weights = form.values.screening_weights;
@@ -37,8 +35,8 @@ export function ScreeningScoreSection({
       <div>
         <Title order={4}>Overall score</Title>
         <Text size="sm" mt={4} style={{ color: palette.muted }}>
-          Screening builds a 0–100 score from the four weights below. Must-haves are pass/fail
-          and never add points. Each nice-to-have can add extra points on top.
+          Screening builds a 0–100 score from the four weights below. The free-text criteria above
+          guide how the AI weighs each area.
         </Text>
       </div>
 
@@ -64,12 +62,13 @@ export function ScreeningScoreSection({
         ))}
       </Group>
 
-      <Text size="sm" c={weightTotal === 100 ? undefined : 'warning'} style={weightTotal === 100 ? { color: palette.muted } : undefined}>
+      <Text
+        size="sm"
+        c={weightTotal === 100 ? undefined : 'warning'}
+        style={weightTotal === 100 ? { color: palette.muted } : undefined}
+      >
         Weights currently add up to {weightTotal}
         {weightTotal === 100 ? '. That is the full 100-point score.' : '. Aim for 100.'}
-        {niceToHaveTotal > 0
-          ? ` Nice-to-haves can add up to ${niceToHaveTotal} extra points.`
-          : ''}
       </Text>
 
       <NumberInput

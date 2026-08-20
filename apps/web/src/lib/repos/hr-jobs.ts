@@ -170,6 +170,7 @@ export type CreateJobInput = {
   ask_marital_status?: boolean;
   hard_requirements?: unknown;
   soft_requirements?: unknown;
+  screening_criteria?: string | null;
   screening_weights?: unknown;
   shortlist_threshold?: number | null;
   cv_required?: boolean;
@@ -199,7 +200,7 @@ export async function createHrJob(
          min_experience_years, required_skills, preferred_skills, education_requirement,
          salary_min, salary_max, currency, languages, notice_period_max_days,
          ask_age, ask_military_status, ask_marital_status,
-         hard_requirements, soft_requirements, screening_weights, shortlist_threshold,
+         hard_requirements, soft_requirements, screening_criteria, screening_weights, shortlist_threshold,
          cv_required, allow_reapply_days, assessment_invite_hours, techtest_invite_hours,
          application_deadline, vacancies, hiring_manager, status, created_by
        )
@@ -208,9 +209,9 @@ export async function createHrJob(
          $8,$9,$10,$11,
          $12,$13,$14,$15::jsonb,$16,
          $17,$18,$19,
-         $20::jsonb,$21::jsonb,COALESCE($22::jsonb, '{"skills":40,"experience":30,"answers":20,"education":10}'::jsonb),$23,
-         $24,$25,$26,$27,
-         $28::timestamptz,$29,$30,'DRAFT',$31
+         $20::jsonb,$21::jsonb,$22,COALESCE($23::jsonb, '{"skills":40,"experience":30,"answers":20,"education":10}'::jsonb),$24,
+         $25,$26,$27,$28,
+         $29::timestamptz,$30,$31,'DRAFT',$32
        )
        RETURNING id, slug`,
       [
@@ -235,6 +236,7 @@ export async function createHrJob(
         input.ask_marital_status ?? false,
         JSON.stringify(hard),
         JSON.stringify(input.soft_requirements ?? []),
+        input.screening_criteria ?? null,
         input.screening_weights == null ? null : JSON.stringify(input.screening_weights),
         input.shortlist_threshold ?? null,
         input.cv_required ?? true,
@@ -281,6 +283,7 @@ const PATCHABLE: Array<keyof CreateJobInput | 'status' | 'assigned_hr_id'> = [
   'ask_marital_status',
   'hard_requirements',
   'soft_requirements',
+  'screening_criteria',
   'screening_weights',
   'shortlist_threshold',
   'cv_required',
@@ -322,6 +325,16 @@ export async function updateHrJob(
       throw Object.assign(new Error('Cannot publish a job with no questions'), {
         code: 'VALIDATION_FAILED',
       });
+    }
+    const criteria =
+      typeof patch.screening_criteria === 'string'
+        ? patch.screening_criteria
+        : existing.screening_criteria;
+    if (!criteria || !String(criteria).trim()) {
+      throw Object.assign(
+        new Error('Describe who you are looking for before publishing'),
+        { code: 'VALIDATION_FAILED' },
+      );
     }
   }
 

@@ -28,6 +28,7 @@ const createSchema = z.object({
   ask_marital_status: z.boolean().optional(),
   hard_requirements: z.unknown().optional(),
   soft_requirements: z.unknown().optional(),
+  screening_criteria: z.string().nullable().optional(),
   screening_weights: z.unknown().optional(),
   shortlist_threshold: z.number().int().min(0).max(100).nullable().optional(),
   cv_required: z.boolean().optional(),
