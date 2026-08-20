@@ -106,15 +106,7 @@ export function LoginForm() {
               <form onSubmit={onFormSubmit}>
                 <Stack gap="lg">
                   <Stack gap="md" align="center">
-                    <Box
-                      style={{
-                        background: palette.ink,
-                        borderRadius: 10,
-                        padding: '14px 20px',
-                      }}
-                    >
-                      <BrandLogo height={40} priority />
-                    </Box>
+                    <BrandLogo height={44} priority />
                     <Stack gap={6} align="center">
                       <Title order={1} ta="center" style={{ fontSize: '1.5rem' }}>
                         Sign in

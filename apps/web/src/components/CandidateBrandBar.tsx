@@ -13,7 +13,7 @@ export function CandidateBrandBar() {
       }}
     >
       <Group px="md" py="sm" justify="flex-start" align="center">
-        <BrandLogo height={32} priority />
+        <BrandLogo height={32} priority onDark />
       </Group>
     </Box>
   );
