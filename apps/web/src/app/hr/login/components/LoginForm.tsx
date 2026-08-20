@@ -105,35 +105,11 @@ export function LoginForm() {
               <form onSubmit={onFormSubmit}>
                 <Stack gap="lg">
                   <Stack gap={6} align="center">
-                    <Box
-                      aria-hidden
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 10,
-                        background: `linear-gradient(135deg, ${palette.accent} 0%, #0b5053 100%)`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Box
-                        style={{
-                          width: 14,
-                          height: 14,
-                          borderRadius: 3,
-                          border: `2px solid ${palette.surface}`,
-                          borderRight: 'none',
-                          borderBottom: 'none',
-                          transform: 'rotate(45deg) translate(1px, 1px)',
-                        }}
-                      />
-                    </Box>
                     <Title order={1} ta="center" style={{ fontSize: '1.5rem' }}>
-                      Hiring
+                      Sign in
                     </Title>
                     <Text size="sm" ta="center" style={{ color: palette.muted }}>
-                      Sign in to your recruitment workspace
+                      Access your recruitment workspace
                     </Text>
                   </Stack>
 

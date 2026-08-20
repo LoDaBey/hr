@@ -63,6 +63,8 @@ export function InterviewsView() {
                 <Table.Th>Candidate</Table.Th>
                 <Table.Th>Role</Table.Th>
                 <Table.Th>Round</Table.Th>
+                <Table.Th>Meeting link</Table.Th>
+                <Table.Th>Interviewer email</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -96,6 +98,42 @@ export function InterviewsView() {
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{row.round_no}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {row.meeting_url ? (
+                      <Anchor
+                        href={row.meeting_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="sm"
+                        c="accent"
+                        lineClamp={1}
+                        maw={220}
+                        aria-label={`Open meeting link for ${row.candidate_name}`}
+                      >
+                        {row.meeting_url}
+                      </Anchor>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        —
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    {row.interviewer_email ? (
+                      <Anchor
+                        href={`mailto:${row.interviewer_email}`}
+                        size="sm"
+                        c="accent"
+                        aria-label={`Email interviewer ${row.interviewer_email}`}
+                      >
+                        {row.interviewer_email}
+                      </Anchor>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        —
+                      </Text>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               ))}

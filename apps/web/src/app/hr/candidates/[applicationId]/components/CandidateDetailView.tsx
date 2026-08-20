@@ -295,14 +295,21 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         </Tabs.List>
 
         <Tabs.Panel value="overview">
-          <Group align="flex-start" gap="md" wrap="wrap" style={{ alignItems: 'flex-start' }}>
-            <Box style={{ flex: '7 1 400px', minWidth: 0, maxWidth: '100%' }}>
+          <Group
+            align="flex-start"
+            gap="md"
+            wrap="wrap"
+            grow
+            preventGrowOverflow={false}
+            style={{ alignItems: 'flex-start' }}
+          >
+            <Box style={{ flex: '2 1 0%', minWidth: 260, maxWidth: '100%' }}>
               <SectionCard title="Application answers">
                 <ApplicationAnswersSection answers={application_answers} />
               </SectionCard>
             </Box>
 
-            <Box style={{ flex: '5 1 280px', minWidth: 0, maxWidth: '100%' }}>
+            <Box style={{ flex: '3 1 0%', minWidth: 320, maxWidth: '100%' }}>
               <SectionCard title="CV">
                 {cv ? (
                   <Stack gap="sm">
@@ -416,9 +423,16 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
         </Tabs.Panel>
 
         <Tabs.Panel value="activity">
-          <Group align="flex-start" gap="md" wrap="wrap" style={{ alignItems: 'flex-start' }}>
-            <Box style={{ flex: '5 1 280px', minWidth: 0, maxWidth: '100%' }}>
-              <SectionCard title="Emails">
+          <Group
+            align="flex-start"
+            gap="md"
+            wrap="wrap"
+            grow
+            preventGrowOverflow={false}
+            style={{ alignItems: 'stretch' }}
+          >
+            <Box style={{ flex: '2 1 0%', minWidth: 280, maxWidth: '100%' }}>
+              <SectionCard title="Emails" description="Outbound messages for this application">
                 {communications.length === 0 ? (
                   <Text c="dimmed" size="sm">
                     No emails queued for this candidate yet.
@@ -429,8 +443,8 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
               </SectionCard>
             </Box>
 
-            <Box style={{ flex: '7 1 400px', minWidth: 0, maxWidth: '100%' }}>
-              <SectionCard title="Timeline">
+            <Box style={{ flex: '3 1 0%', minWidth: 320, maxWidth: '100%' }}>
+              <SectionCard title="Timeline" description="Stage changes and system events">
                 <CandidateTimelineSection timeline={timeline} />
               </SectionCard>
             </Box>

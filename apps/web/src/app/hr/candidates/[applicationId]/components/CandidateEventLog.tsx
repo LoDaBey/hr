@@ -1,8 +1,8 @@
 'use client';
 
-import { Group, Stack, Text, Timeline } from '@mantine/core';
+import { Box, Group, Stack, Text, Timeline } from '@mantine/core';
 import { datetime, formatDayHeading, groupByDay, relativeTime } from '@/lib/format';
-import { palette } from '@/theme';
+import { palette, shadows } from '@/theme';
 
 export type EventLogItem = {
   id: string;
@@ -27,28 +27,65 @@ export function CandidateEventLog({ items }: { items: EventLogItem[] }) {
     <Stack gap="lg">
       {grouped.map((group) => (
         <Stack key={group.day} gap="sm">
-          <Text size="sm" fw={700} style={{ color: palette.ink }}>
+          <Text
+            size="xs"
+            fw={700}
+            tt="uppercase"
+            style={{ color: palette.muted, letterSpacing: '0.05em' }}
+          >
             {formatDayHeading(group.day)}
           </Text>
-          <Timeline bulletSize={14} lineWidth={2} color="accent">
+          <Timeline active={group.items.length} bulletSize={18} lineWidth={2} color="accent">
             {group.items.map((item) => (
-              <Timeline.Item key={item.id} title={item.title} bullet={<span aria-hidden />}>
-                <Stack gap={4}>
-                  <Text size="sm" c="dimmed">
-                    {item.detail}
+              <Timeline.Item
+                key={item.id}
+                title={
+                  <Text fw={600} size="sm" style={{ color: palette.ink }}>
+                    {item.title}
                   </Text>
-                  <Group justify="space-between" align="center" wrap="wrap" gap="xs">
-                    <Text
-                      size="xs"
-                      c="dimmed"
-                      title={datetime(item.timestamp)}
-                      style={{ cursor: 'default' }}
-                    >
-                      {relativeTime(item.timestamp)}
-                    </Text>
-                    {item.actions}
-                  </Group>
-                </Stack>
+                }
+                bullet={
+                  <Box
+                    aria-hidden
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: palette.accent,
+                      boxShadow: `0 0 0 3px ${palette.accent}22`,
+                    }}
+                  />
+                }
+              >
+                <Box
+                  p="sm"
+                  mt={4}
+                  style={{
+                    background: palette.paper,
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: 8,
+                    boxShadow: shadows.sm,
+                  }}
+                >
+                  <Stack gap={6}>
+                    {item.detail ? (
+                      <Text size="sm" style={{ color: palette.muted, lineHeight: 1.45 }}>
+                        {item.detail}
+                      </Text>
+                    ) : null}
+                    <Group justify="space-between" align="center" wrap="wrap" gap="xs">
+                      <Text
+                        size="xs"
+                        c="dimmed"
+                        title={datetime(item.timestamp)}
+                        style={{ cursor: 'default' }}
+                      >
+                        {relativeTime(item.timestamp)}
+                      </Text>
+                      {item.actions}
+                    </Group>
+                  </Stack>
+                </Box>
               </Timeline.Item>
             ))}
           </Timeline>

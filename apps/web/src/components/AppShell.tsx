@@ -13,7 +13,6 @@ import {
   NavLink,
   Stack,
   Text,
-  Title,
   Tooltip,
 } from '@mantine/core';
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
@@ -74,52 +73,6 @@ const CRUMB_LABELS: Record<string, string> = {
 function isActive(pathname: string, href: string): boolean {
   if (href === '/hr') return pathname === '/hr';
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function BrandMark({ compact }: { compact?: boolean }) {
-  return (
-    <Group gap={compact ? 0 : 10} wrap="nowrap" align="center">
-      <Box
-        aria-hidden
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 7,
-          background: `linear-gradient(135deg, ${palette.accent} 0%, #0b5053 100%)`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          boxShadow: shadows.sm,
-        }}
-      >
-        <Box
-          style={{
-            width: 12,
-            height: 12,
-            borderRadius: 3,
-            border: `2px solid ${palette.surface}`,
-            borderRight: 'none',
-            borderBottom: 'none',
-            transform: 'rotate(45deg) translate(1px, 1px)',
-          }}
-        />
-      </Box>
-      {!compact ? (
-        <Title
-          order={4}
-          style={{
-            color: palette.surface,
-            letterSpacing: density.titleLetterSpacing,
-            fontSize: '1.05rem',
-            lineHeight: 1,
-          }}
-        >
-          Hiring
-        </Title>
-      ) : null}
-    </Group>
-  );
 }
 
 function NavSection({
@@ -344,7 +297,7 @@ export function AppShell({
             }}
           >
             <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
-              <Group justify={railCollapsed ? 'center' : 'space-between'} wrap="nowrap" gap="xs" px={railCollapsed ? 0 : 4}>
+              <Group justify={railCollapsed ? 'center' : 'flex-end'} wrap="nowrap" gap="xs" px={railCollapsed ? 0 : 4}>
                 {railCollapsed && !isMobile ? (
                   <Tooltip label="Expand sidebar" position="right">
                     <ActionIcon
@@ -354,12 +307,14 @@ export function AppShell({
                       onClick={() => setCollapsed(false)}
                       style={{ color: palette.surface }}
                     >
-                      <BrandMark compact />
+                      <IconLayoutSidebarLeftCollapse
+                        size={18}
+                        aria-hidden
+                        style={{ transform: 'scaleX(-1)' }}
+                      />
                     </ActionIcon>
                   </Tooltip>
-                ) : (
-                  <BrandMark />
-                )}
+                ) : null}
                 {!isMobile && !railCollapsed ? (
                   <Tooltip label="Collapse sidebar" position="right">
                     <motion.div

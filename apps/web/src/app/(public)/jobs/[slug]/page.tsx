@@ -17,7 +17,7 @@ export default async function JobDetailPage({
   if (!result.ok) return <ClosedJobNotice />;
 
   return (
-    <PublicPageShell>
+    <PublicPageShell wide>
       <JobDetailView job={result.job} />
     </PublicPageShell>
   );
