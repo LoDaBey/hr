@@ -5,15 +5,15 @@ import {
   Alert,
   Checkbox,
   Group,
-  List,
   Loader,
   Paper,
+  SimpleGrid,
   Stack,
   Text,
   Title,
 } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
-import { datetime } from '@/lib/format';
+import { supportsDisplayMedia } from '@/lib/display-media';
 import {
   deviceTrackStatus,
   formatDeviceStatus,
@@ -23,12 +23,19 @@ import {
 import { isExternalDisplayConnected } from '@/hooks/useProctoring';
 import { density, palette } from '@/theme';
 import type { CandidateAssessmentGetResult } from '@/types/api';
+import { PreflightDesktopRequired } from './PreflightDesktopRequired';
+import { PreflightRules } from './PreflightRules';
+import { PreflightSessionInfo } from './PreflightSessionInfo';
 import {
   ScreenSharePreflightBlock,
   useScreenShareMonitor,
 } from './ScreenSharePreflight';
 
 type MediaState = 'idle' | 'requesting' | 'ready' | 'denied' | 'error';
+
+const PREVIEW_TIMEOUT_MS = 10_000;
+const PREVIEW_TIMEOUT_MESSAGE =
+  'We could not display your camera. It may be in use by another application — close other video apps and retry.';
 
 export function TechInterviewPreflight({
   data,
@@ -48,13 +55,22 @@ export function TechInterviewPreflight({
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const detachListenersRef = useRef<(() => void) | null>(null);
+
   const requirements: MediaRequirements = {
     camera: data.requirements?.camera ?? true,
     mic: data.requirements?.mic ?? true,
   };
   const needsScreenShare = data.requirements?.screen_share === true;
+  const [displayMediaSupported, setDisplayMediaSupported] = useState<boolean | null>(null);
+  const screenShareUnsupported = needsScreenShare && displayMediaSupported === false;
   const screenShare = useScreenShareMonitor();
   const [externalDisplay, setExternalDisplay] = useState(() => isExternalDisplayConnected());
+
+  useEffect(() => {
+    setDisplayMediaSupported(supportsDisplayMedia() === true);
+  }, []);
 
   const checkExternalDisplay = useCallback(() => {
     setExternalDisplay(isExternalDisplayConnected());
@@ -74,35 +90,49 @@ export function TechInterviewPreflight({
     setTrackStatus(deviceTrackStatus(streamRef.current, requirements));
   }, [requirements]);
 
+  const clearPreviewTimeout = useCallback(() => {
+    if (previewTimeoutRef.current) {
+      clearTimeout(previewTimeoutRef.current);
+      previewTimeoutRef.current = null;
+    }
+  }, []);
+
   const stopTracks = useCallback(() => {
+    clearPreviewTimeout();
+    detachListenersRef.current?.();
+    detachListenersRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     setTrackStatus(deviceTrackStatus(null, requirements));
-  }, [requirements]);
+  }, [clearPreviewTimeout, requirements]);
 
-  const applyMediaError = useCallback((error: unknown) => {
-    const name = error instanceof DOMException ? error.name : '';
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-      setMediaState('denied');
-      setMediaError(
-        'Camera or microphone access was blocked. Allow access in your browser settings for this site, then retry.',
-      );
-    } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-      setMediaState('error');
-      setMediaError('No camera or microphone was found. Plug one in, then retry.');
-    } else {
-      setMediaState('error');
-      setMediaError(
-        error instanceof Error
-          ? error.message
-          : 'Could not access camera or microphone. Retry when ready.',
-      );
-    }
-    refreshTrackStatus();
-  }, [refreshTrackStatus]);
+  const applyMediaError = useCallback(
+    (error: unknown) => {
+      clearPreviewTimeout();
+      const name = error instanceof DOMException ? error.name : '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setMediaState('denied');
+        setMediaError(
+          'Camera or microphone access was blocked. Allow access in your browser settings for this site, then retry.',
+        );
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        setMediaState('error');
+        setMediaError('No camera or microphone was found. Plug one in, then retry.');
+      } else {
+        setMediaState('error');
+        setMediaError(
+          error instanceof Error
+            ? error.message
+            : 'Could not access camera or microphone. Retry when ready.',
+        );
+      }
+      refreshTrackStatus();
+    },
+    [clearPreviewTimeout, refreshTrackStatus],
+  );
 
   const mediaConstraints = useCallback((): MediaStreamConstraints => {
     return {
@@ -132,79 +162,113 @@ export function TechInterviewPreflight({
     [refreshTrackStatus],
   );
 
-  const requestMedia = useCallback(async () => {
+  const finishReadyFromTracks = useCallback(
+    (stream: MediaStream) => {
+      clearPreviewTimeout();
+      const live = streamMeetsRequirements(stream, requirements);
+      setMediaState(live ? 'ready' : 'error');
+      if (!live) {
+        setMediaError('Camera or microphone is not active. Check your devices, then retry.');
+      } else {
+        setMediaError(null);
+      }
+      refreshTrackStatus();
+    },
+    [clearPreviewTimeout, refreshTrackStatus, requirements],
+  );
+
+  const bindStreamToElement = useCallback(
+    (el: HTMLVideoElement, stream: MediaStream) => {
+      if (el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+      void el.play().catch(() => undefined);
+    },
+    [],
+  );
+
+  /** Callback ref so the stream attaches the moment the element mounts. */
+  const attachVideo = useCallback(
+    (el: HTMLVideoElement | null) => {
+      videoRef.current = el;
+      if (el && streamRef.current) {
+        bindStreamToElement(el, streamRef.current);
+      }
+    },
+    [bindStreamToElement],
+  );
+
+  const armPreviewTimeout = useCallback(() => {
+    clearPreviewTimeout();
+    previewTimeoutRef.current = setTimeout(() => {
+      setMediaState('error');
+      setMediaError(PREVIEW_TIMEOUT_MESSAGE);
+    }, PREVIEW_TIMEOUT_MS);
+  }, [clearPreviewTimeout]);
+
+  const onPreviewFrame = useCallback(() => {
+    const stream = streamRef.current;
+    if (!stream) return;
+    finishReadyFromTracks(stream);
+  }, [finishReadyFromTracks]);
+
+  const acquireMedia = useCallback(async () => {
     checkExternalDisplay();
     if (!needsMedia) {
       setMediaState('ready');
       return;
     }
+
     setMediaState('requesting');
     setMediaError(null);
     stopTracks();
+    armPreviewTimeout();
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints());
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => undefined);
+      detachListenersRef.current = attachStreamListeners(stream);
+
+      const el = videoRef.current;
+      if (el) {
+        bindStreamToElement(el, stream);
       }
-      const live = streamMeetsRequirements(stream, requirements);
-      setMediaState(live ? 'ready' : 'error');
-      if (!live) {
-        setMediaError('Camera or microphone is not active. Check your devices, then retry.');
+
+      // Mic-only: no camera frame to wait for — ready from tracks.
+      if (!requirements.camera) {
+        finishReadyFromTracks(stream);
+        return;
       }
+
+      // Camera: stay in requesting until the element fires loadedmetadata / canplay.
       refreshTrackStatus();
     } catch (error) {
       applyMediaError(error);
     }
-  }, [applyMediaError, checkExternalDisplay, mediaConstraints, needsMedia, refreshTrackStatus, requirements, stopTracks]);
-
-  useEffect(() => {
-    if (!needsMedia) return;
-
-    let cancelled = false;
-    let detachListeners: (() => void) | undefined;
-
-    void (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints());
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        streamRef.current = stream;
-        detachListeners = attachStreamListeners(stream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => undefined);
-        }
-        const live = streamMeetsRequirements(stream, requirements);
-        setMediaState(live ? 'ready' : 'error');
-        if (!live) {
-          setMediaError('Camera or microphone is not active. Check your devices, then retry.');
-        } else {
-          setMediaError(null);
-        }
-        refreshTrackStatus();
-      } catch (error) {
-        if (!cancelled) applyMediaError(error);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      detachListeners?.();
-      stopTracks();
-    };
   }, [
     applyMediaError,
+    armPreviewTimeout,
     attachStreamListeners,
+    bindStreamToElement,
+    checkExternalDisplay,
+    finishReadyFromTracks,
     mediaConstraints,
     needsMedia,
     refreshTrackStatus,
-    requirements,
+    requirements.camera,
     stopTracks,
   ]);
+
+  useEffect(() => {
+    if (needsScreenShare && displayMediaSupported === null) return;
+    if (screenShareUnsupported || !needsMedia) return;
+    void acquireMedia();
+    return () => {
+      stopTracks();
+    };
+    // Acquire once media support is known; do not re-run when callback identities change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gated mount acquire
+  }, [displayMediaSupported, screenShareUnsupported, needsMedia, needsScreenShare]);
 
   // Derive from trackStatus state (kept in sync via refreshTrackStatus), not streamRef —
   // reading refs during render is invalid in React.
@@ -213,6 +277,7 @@ export function TechInterviewPreflight({
     (!requirements.mic || trackStatus.mic === 'on');
   const screenShareReady = !needsScreenShare || screenShare.ready;
   const canStart =
+    !screenShareUnsupported &&
     acceptedRules &&
     !starting &&
     !externalDisplay &&
@@ -235,16 +300,58 @@ export function TechInterviewPreflight({
     !devicesLive &&
     (trackStatus.camera === 'off' || trackStatus.mic === 'off');
 
+  if (screenShareUnsupported) {
+    return (
+      <Stack gap="xl" maw={640} mx="auto" py={{ base: 'lg', md: 'xl' }} px="md">
+        <div>
+          <Text
+            size="xs"
+            fw={600}
+            tt="uppercase"
+            style={{ color: palette.muted, letterSpacing: '0.06em' }}
+          >
+            {data.job_title}
+          </Text>
+          <Title
+            order={1}
+            mt={6}
+            style={{
+              color: palette.ink,
+              letterSpacing: density.titleLetterSpacing,
+              fontSize: 'clamp(1.5rem, 2.5vw, 1.85rem)',
+            }}
+          >
+            {data.assessment.title}
+          </Title>
+        </div>
+        <PreflightDesktopRequired />
+      </Stack>
+    );
+  }
+
   return (
-    <Stack gap="lg" maw={560} mx="auto" py="xl" px="md">
+    <Stack gap="xl" maw={1100} mx="auto" py={{ base: 'lg', md: 'xl' }} px="md">
       <div>
-        <Text size="xs" fw={600} tt="uppercase" style={{ color: palette.muted, letterSpacing: '0.06em' }}>
+        <Text
+          size="xs"
+          fw={600}
+          tt="uppercase"
+          style={{ color: palette.muted, letterSpacing: '0.06em' }}
+        >
           {data.job_title}
         </Text>
-        <Title order={1} mt={6} style={{ color: palette.ink, letterSpacing: density.titleLetterSpacing, fontSize: '1.5rem' }}>
+        <Title
+          order={1}
+          mt={6}
+          style={{
+            color: palette.ink,
+            letterSpacing: density.titleLetterSpacing,
+            fontSize: 'clamp(1.5rem, 2.5vw, 1.85rem)',
+          }}
+        >
           {data.assessment.title}
         </Title>
-        <Text mt="sm" size="sm">
+        <Text mt="sm" size="sm" maw={640}>
           Hi {data.candidate_name}. This session is recorded
           {requirements.camera || requirements.mic
             ? ' and needs a working camera and microphone'
@@ -253,192 +360,183 @@ export function TechInterviewPreflight({
         </Text>
       </div>
 
-      <Paper
-        withBorder
-        p="md"
-        radius={density.defaultRadius}
-        style={{ borderColor: palette.border, background: palette.surface }}
-      >
-        <Stack gap="sm">
-          <Text size="sm">
-            Time limit: <strong>{data.assessment.duration_minutes} minutes</strong> once you
-            start · {data.assessment.question_count} question
-            {data.assessment.question_count === 1 ? '' : 's'}
-          </Text>
-          <Text size="sm" c="dimmed">
-            Start before {datetime(data.invite_deadline)}. The clock does not start until you
-            press Start.
-          </Text>
-          {data.assessment.instructions ? (
-            <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-              {data.assessment.instructions}
-            </Text>
-          ) : null}
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" verticalSpacing="lg">
+        <Stack gap="md">
+          <PreflightSessionInfo data={data} />
+          <PreflightRules rules={data.requirements?.rules ?? []} />
         </Stack>
-      </Paper>
 
-      {(data.requirements?.rules ?? []).length > 0 ? (
-        <Paper
-          withBorder
-          p="md"
-          radius={density.defaultRadius}
-          style={{ borderColor: palette.border, background: palette.surface }}
-        >
-          <Text fw={600} mb="xs">
-            Rules
-          </Text>
-          <List size="sm" spacing="xs">
-            {(data.requirements?.rules ?? []).map((rule) => (
-              <List.Item key={rule}>{rule}</List.Item>
-            ))}
-          </List>
-        </Paper>
-      ) : null}
+        <Stack gap="md">
+          {needsScreenShare ? (
+            <Alert color="warning" title="Desktop or laptop required">
+              <Text size="sm">
+                This session must be taken on a desktop or laptop computer. Phones and tablets
+                cannot share an entire screen.
+              </Text>
+            </Alert>
+          ) : null}
 
-      {needsMedia && (
-        <Paper
-          withBorder
-          p="md"
-          radius={density.defaultRadius}
-          style={{ borderColor: palette.border, overflow: 'hidden', background: palette.surface }}
-        >
-          <Stack gap="sm">
-            <Text fw={600}>Check your framing</Text>
-            <Text size="sm" c="dimmed">
-              Make sure your face is clear and your microphone is working. Nothing is recorded
-              until you press Start.
-            </Text>
-            <div
+          {needsMedia ? (
+            <Paper
+              withBorder
+              p="md"
+              radius={density.defaultRadius}
               style={{
-                position: 'relative',
-                aspectRatio: '4 / 3',
-                background: palette.ink,
-                borderRadius: 8,
+                borderColor: palette.border,
                 overflow: 'hidden',
+                background: palette.surface,
               }}
             >
-              <video
-                ref={videoRef}
-                muted
-                playsInline
-                autoPlay
-                aria-label="Camera self-view"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  transform: 'scaleX(-1)',
-                  opacity: devicesLive ? 1 : 0.35,
-                }}
-              />
-              {mediaState === 'requesting' ? (
-                <Group
-                  justify="center"
-                  align="center"
+              <Stack gap="sm">
+                <Text fw={600}>Check your framing</Text>
+                <Text size="sm" c="dimmed">
+                  Make sure your face is clear and your microphone is working. Nothing is recorded
+                  until you press Start.
+                </Text>
+                <div
                   style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: `${palette.ink}cc`,
+                    position: 'relative',
+                    aspectRatio: '4 / 3',
+                    background: palette.ink,
+                    borderRadius: 8,
+                    overflow: 'hidden',
                   }}
                 >
-                  <Loader color="accent" aria-label="Requesting camera access" />
-                </Group>
-              ) : null}
-            </div>
+                  <video
+                    ref={attachVideo}
+                    muted
+                    playsInline
+                    autoPlay
+                    onLoadedMetadata={onPreviewFrame}
+                    onCanPlay={onPreviewFrame}
+                    aria-label="Camera self-view"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transform: 'scaleX(-1)',
+                      opacity: mediaState === 'ready' && devicesLive ? 1 : 0.35,
+                    }}
+                  />
+                  {mediaState === 'requesting' ? (
+                    <Group
+                      justify="center"
+                      align="center"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: `${palette.ink}cc`,
+                      }}
+                    >
+                      <Loader color="accent" aria-label="Requesting camera access" />
+                    </Group>
+                  ) : null}
+                </div>
 
-            {mediaState === 'ready' && deviceLabel ? (
-              <Text
-                size="sm"
-                fw={600}
-                style={{
-                  color:
-                    devicesLive && !showDeviceWarning ? palette.success : palette.danger,
-                }}
-              >
-                {deviceLabel}
-              </Text>
-            ) : null}
-
-            {mediaState === 'denied' || mediaState === 'error' || showDeviceWarning ? (
-              <Alert color="danger" title="Device access needed">
-                <Stack gap="sm">
-                  <Text size="sm">
-                    {mediaError ??
-                      'Camera or microphone is not active. Check your devices, then retry.'}
-                  </Text>
-                  <MotionButton
-                    className="cursor-pointer rounded-lg"
-                    aria-label="Retry camera and microphone access"
-                    variant="default"
-                    onClick={() => void requestMedia()}
+                {mediaState === 'ready' && deviceLabel ? (
+                  <Text
+                    size="sm"
+                    fw={600}
+                    style={{
+                      color:
+                        devicesLive && !showDeviceWarning ? palette.success : palette.danger,
+                    }}
                   >
-                    Retry
-                  </MotionButton>
-                </Stack>
-              </Alert>
-            ) : null}
+                    {deviceLabel}
+                  </Text>
+                ) : null}
 
-            {mediaState === 'ready' && devicesLive ? (
-              <Text size="sm" c="dimmed">
-                Looking good. Accept the rules below when you are ready.
-              </Text>
-            ) : null}
-          </Stack>
-        </Paper>
-      )}
+                {mediaState === 'denied' || mediaState === 'error' || showDeviceWarning ? (
+                  <Alert color="danger" title="Device access needed">
+                    <Stack gap="sm">
+                      <Text size="sm">
+                        {mediaError ??
+                          'Camera or microphone is not active. Check your devices, then retry.'}
+                      </Text>
+                      <MotionButton
+                        className="cursor-pointer rounded-lg"
+                        aria-label="Retry camera and microphone access"
+                        variant="default"
+                        onClick={() => void acquireMedia()}
+                      >
+                        Retry
+                      </MotionButton>
+                    </Stack>
+                  </Alert>
+                ) : null}
 
-      {externalDisplay ? (
-        <Alert color="danger" title="Second display detected">
-          <Stack gap="sm">
-            <Text size="sm">
-              A second display was detected. Please disconnect it before starting.
-            </Text>
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Re-check for second display"
-              variant="default"
-              onClick={() => checkExternalDisplay()}
-            >
-              Retry
-            </MotionButton>
-          </Stack>
-        </Alert>
-      ) : null}
+                {mediaState === 'ready' && devicesLive ? (
+                  <Text size="sm" c="dimmed">
+                    Looking good. Accept the rules when you are ready to start.
+                  </Text>
+                ) : null}
+              </Stack>
+            </Paper>
+          ) : null}
 
-      {needsScreenShare && !externalDisplay ? (
-        <ScreenSharePreflightBlock
-          error={screenShare.error}
-          requesting={screenShare.requesting}
-          ready={screenShare.ready}
-          onRequest={() => void screenShare.request()}
-        />
-      ) : null}
+          {externalDisplay ? (
+            <Alert color="danger" title="Second display detected">
+              <Stack gap="sm">
+                <Text size="sm">
+                  A second display was detected. Please disconnect it before starting.
+                </Text>
+                <MotionButton
+                  className="cursor-pointer rounded-lg"
+                  aria-label="Re-check for second display"
+                  variant="default"
+                  onClick={() => checkExternalDisplay()}
+                >
+                  Retry
+                </MotionButton>
+              </Stack>
+            </Alert>
+          ) : null}
 
-      <Checkbox
-        className="rounded outline-none"
-        label="I have read and accept the rules"
-        aria-label="I have read and accept the rules"
-        checked={acceptedRules}
-        onChange={(e) => setAcceptedRules(e.currentTarget.checked)}
-      />
+          {needsScreenShare && !externalDisplay ? (
+            <ScreenSharePreflightBlock
+              error={screenShare.error}
+              requesting={screenShare.requesting}
+              ready={screenShare.ready}
+              onRequest={() => void screenShare.request()}
+            />
+          ) : null}
 
-      {startError ? (
-        <Alert color="danger" title="Could not start">
-          {startError}
-        </Alert>
-      ) : null}
+          <Paper
+            withBorder
+            p="md"
+            radius={density.defaultRadius}
+            style={{ borderColor: palette.border, background: palette.surface }}
+          >
+            <Stack gap="md">
+              <Checkbox
+                className="rounded outline-none"
+                label="I have read and accept the rules"
+                aria-label="I have read and accept the rules"
+                checked={acceptedRules}
+                onChange={(e) => setAcceptedRules(e.currentTarget.checked)}
+              />
 
-      <MotionButton
-        className="cursor-pointer rounded-lg"
-        aria-label="Start recorded interview"
-        color="accent"
-        disabled={!canStart}
-        loading={starting}
-        fullWidth
-        onClick={() => void handleStart()}
-      >
-        Start session
-      </MotionButton>
+              {startError ? (
+                <Alert color="danger" title="Could not start">
+                  {startError}
+                </Alert>
+              ) : null}
+
+              <MotionButton
+                className="cursor-pointer rounded-lg"
+                aria-label="Start recorded interview"
+                color="accent"
+                disabled={!canStart}
+                loading={starting}
+                fullWidth
+                onClick={() => void handleStart()}
+              >
+                Start session
+              </MotionButton>
+            </Stack>
+          </Paper>
+        </Stack>
+      </SimpleGrid>
     </Stack>
   );
 }

@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Stack, Text } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
+import { requestEntireMonitorShare } from '@/lib/display-media';
 import { palette } from '@/theme';
-
-type DisplayMediaTrackSettings = MediaTrackSettings & {
-  displaySurface?: string;
-};
 
 export function useScreenShareMonitor() {
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -27,19 +24,7 @@ export function useScreenShareMonitor() {
     stream?.getTracks().forEach((track) => track.stop());
     setStream(null);
     try {
-      const next = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'monitor' },
-        audio: false,
-      });
-      const track = next.getVideoTracks()[0];
-      const surface = (track?.getSettings() as DisplayMediaTrackSettings | undefined)
-        ?.displaySurface;
-      if (surface !== 'monitor') {
-        next.getTracks().forEach((t) => t.stop());
-        throw new Error(
-          'Please share your entire monitor, not a single tab or window.',
-        );
-      }
+      const next = await requestEntireMonitorShare();
       setStream(next);
       return next;
     } catch (err) {

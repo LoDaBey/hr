@@ -542,7 +542,7 @@ INSERT INTO HRSYSTEM_email_templates (key, subject, body_html) VALUES
 ('ASSESSMENT_EXPIRED','Your {{job_title}} assessment has expired',
  '<p>Hi {{candidate_name}},</p><p>The assessment window has closed. Contact us if you had a technical problem.</p>'),
 ('TECHTEST_INVITE','Recorded technical interview for {{job_title}}',
- '<p>Hi {{candidate_name}},</p><p>Next step for <b>{{job_title}}</b> is a recorded technical interview: <a href="{{interview_link}}">Start interview</a></p><p>You need a working camera and microphone. The session is recorded. Start before <b>{{assessment_deadline}}</b>. Once you start you have {{duration_minutes}} minutes.</p><p>{{hr_name}}</p>'),
+ '<p>Hi {{candidate_name}},</p><p>Next step for <b>{{job_title}}</b> is a recorded technical interview: <a href="{{interview_link}}">Start interview</a></p><p>You need a working camera and microphone. The session is recorded.{{desktop_requirement}} Start before <b>{{assessment_deadline}}</b>. Once you start you have {{duration_minutes}} minutes.</p><p>{{hr_name}}</p>'),
 ('INTERVIEW_INVITE','Final interview — {{job_title}}',
  '<p>Hi {{candidate_name}},</p><p>Your final interview is scheduled for <b>{{interview_date}} at {{interview_time}} ({{timezone}})</b>.</p><p>Join here: <a href="{{meeting_url}}">{{meeting_url}}</a></p><p>{{hr_name}}</p>'),
 ('INTERVIEWER_INVITE','Interview scheduled — {{candidate_name}} for {{job_title}}',

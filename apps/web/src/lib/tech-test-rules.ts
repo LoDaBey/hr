@@ -1,22 +1,16 @@
 import type { AssessmentDraft } from '@/types/job-editor';
 
-const ALWAYS_RULES = [
-  'This session is recorded',
-  'Do not switch tabs or use another application',
-  'Do not leave the session',
-  'Do not share your screen with anyone else',
-  'Do not use any other devices',
-  'Do not use any other browsers',
-] as const;
-
-/** Build candidate-facing rules from Require toggles (TECH_TEST). */
+/** Build candidate-facing rules from Require toggles (TECH_TEST). Only enforced rules. */
 export function buildTechTestRules(opts: {
   require_camera: boolean;
   require_mic: boolean;
   require_fullscreen: boolean;
   require_screen_share: boolean;
 }): string {
-  const lines: string[] = [...ALWAYS_RULES];
+  const lines: string[] = [
+    'This session is recorded',
+    'Do not switch tabs or use another application',
+  ];
   if (opts.require_camera) {
     lines.push('Your camera must stay on for the whole session');
   }
@@ -28,6 +22,7 @@ export function buildTechTestRules(opts: {
   }
   if (opts.require_screen_share) {
     lines.push('Share your entire screen, not a single tab or window');
+    lines.push('Use a desktop or laptop');
   }
   return lines.join('\n');
 }

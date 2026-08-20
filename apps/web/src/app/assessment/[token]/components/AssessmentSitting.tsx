@@ -276,8 +276,46 @@ export function AssessmentSitting({
   const current: CandidateQuestion | undefined = questions[index];
   const isLast = index >= questions.length - 1;
 
+  const questionNav = (
+    <Stack gap={4}>
+      <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase" style={{ letterSpacing: '0.04em' }}>
+        Questions
+      </Text>
+      {questions.map((q, i) => {
+        const answered = isAnswered(answers[q.id]);
+        const active = i === index;
+        return (
+          <UnstyledButton
+            key={q.id}
+            className="cursor-pointer rounded-lg"
+            aria-label={`Go to question ${i + 1}${answered ? ', answered' : ', not answered'}`}
+            onClick={() => void goTo(i)}
+            style={{
+              padding: '8px 10px',
+              textAlign: 'left',
+              background: active ? `${palette.accent}18` : 'transparent',
+              borderLeft: active ? `3px solid ${palette.accent}` : '3px solid transparent',
+              color: answered ? palette.success : palette.ink,
+              fontSize: 13,
+              fontWeight: active ? 600 : 400,
+            }}
+          >
+            {i + 1}. {answered ? 'Answered' : 'Not answered'}
+          </UnstyledButton>
+        );
+      })}
+    </Stack>
+  );
+
   return (
-    <div style={{ minHeight: '100vh', background: palette.paper }}>
+    <div
+      style={{
+        minHeight: '100dvh',
+        background: palette.paper,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <Group
         justify="space-between"
         align="center"
@@ -290,6 +328,7 @@ export function AssessmentSitting({
           top: 0,
           zIndex: 5,
           boxShadow: 'var(--hr-shadow-sm)',
+          flexShrink: 0,
         }}
       >
         <Text size="sm" fw={600}>
@@ -325,62 +364,44 @@ export function AssessmentSitting({
       <div
         style={{
           display: 'flex',
-          justifyContent: 'center',
-          padding: '24px 16px 48px',
+          flex: 1,
+          minHeight: 0,
+          alignItems: 'stretch',
         }}
       >
-        <Group
-          align="flex-start"
-          gap="lg"
-          wrap="wrap"
-          maw={density.contentMaxWidth + 180}
-          style={{ width: '100%', justifyContent: 'center' }}
+        <aside
+          aria-label="Question list"
+          style={{
+            width: 200,
+            flexShrink: 0,
+            padding: '20px 12px',
+            background: palette.surface,
+            borderRight: `1px solid ${palette.border}`,
+            position: 'sticky',
+            top: NAV_BAR_HEIGHT,
+            alignSelf: 'flex-start',
+            height: `calc(100dvh - ${NAV_BAR_HEIGHT}px)`,
+            overflowY: 'auto',
+          }}
         >
-          <Stack
-            gap={4}
-            p="sm"
-            style={{
-              width: 148,
-              flexShrink: 0,
-              background: palette.surface,
-              border: `1px solid ${palette.border}`,
-              borderRadius: 8,
-            }}
-          >
-            <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase" style={{ letterSpacing: '0.04em' }}>
-              Questions
-            </Text>
-            {questions.map((q, i) => {
-              const answered = isAnswered(answers[q.id]);
-              const active = i === index;
-              return (
-                <UnstyledButton
-                  key={q.id}
-                  className="cursor-pointer rounded-lg"
-                  aria-label={`Go to question ${i + 1}${answered ? ', answered' : ', not answered'}`}
-                  onClick={() => void goTo(i)}
-                  style={{
-                    padding: '6px 8px',
-                    textAlign: 'left',
-                    background: active ? `${palette.accent}18` : 'transparent',
-                    borderLeft: active ? `3px solid ${palette.accent}` : '3px solid transparent',
-                    color: answered ? palette.success : palette.ink,
-                    fontSize: 13,
-                    fontWeight: active ? 600 : 400,
-                  }}
-                >
-                  {i + 1}. {answered ? 'Answered' : 'Not answered'}
-                </UnstyledButton>
-              );
-            })}
-          </Stack>
+          {questionNav}
+        </aside>
 
+        <main
+          style={{
+            flex: 1,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            padding: '32px 24px 48px',
+            minWidth: 0,
+          }}
+        >
           <Paper
             withBorder
             radius={density.defaultRadius}
             style={{
-              flex: 1,
-              width: density.contentMaxWidth,
+              width: '100%',
               maxWidth: density.contentMaxWidth,
               minHeight: QUESTION_CARD_MIN_HEIGHT,
               borderColor: palette.border,
@@ -454,7 +475,7 @@ export function AssessmentSitting({
               )}
             </Group>
           </Paper>
-        </Group>
+        </main>
       </div>
 
       <Modal

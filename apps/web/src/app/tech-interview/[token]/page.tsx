@@ -12,6 +12,7 @@ import { useProctoring } from '@/hooks/useProctoring';
 import { useRecorder } from '@/hooks/useRecorder';
 import { ApiError, api } from '@/lib/api';
 import { uploadChunkedToCloudinary } from '@/lib/cloudinary-client';
+import { requestEntireMonitorShare } from '@/lib/display-media';
 import {
   replaceStreamTracks,
   streamMeetsRequirements,
@@ -324,18 +325,7 @@ export default function TechInterviewPage({
       setRestoringDevices(true);
       setStartError(null);
       try {
-        const next = await navigator.mediaDevices.getDisplayMedia({
-          video: { displaySurface: 'monitor' },
-          audio: false,
-        });
-        const track = next.getVideoTracks()[0];
-        const surface = (
-          track?.getSettings() as MediaTrackSettings & { displaySurface?: string }
-        )?.displaySurface;
-        if (surface !== 'monitor') {
-          next.getTracks().forEach((t) => t.stop());
-          throw new Error('Please share your entire monitor, not a single tab or window.');
-        }
+        const next = await requestEntireMonitorShare();
         screenStreamRef.current?.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = next;
         setLiveScreenStream(next);
