@@ -438,6 +438,7 @@ export interface HrCandidatesGetResult {
     reasoning_summary: string | null;
     hr_decision: string | null;
     hard_requirement_failures: HardRequirementFailure[];
+    screened_without_cv: boolean;
   } | null;
   assessment: {
     id: string;
@@ -453,6 +454,7 @@ export interface HrCandidatesGetResult {
     review: {
       overall_feedback: string | null;
       has_overall_evaluation: boolean;
+      grading_failed: boolean;
       grading_error: string | null;
       questions: Array<{
         id: string;
@@ -491,6 +493,7 @@ export interface HrCandidatesGetResult {
     review: {
       overall_feedback: string | null;
       has_overall_evaluation: boolean;
+      grading_failed: boolean;
       grading_error: string | null;
       proctoring_flag: 'CLEAN' | 'MINOR_FLAGS' | 'REVIEW_RECORDING' | null;
       proctoring_summary: string | null;
@@ -813,6 +816,26 @@ export interface HrErrorsListResult {
     application_id: string | null;
     created_at: string;
   }>;
+  stuck_gradings: Array<{
+    application_id: string;
+    candidate_assessment_id: string;
+    kind: 'ASSESSMENT' | 'TECH_TEST';
+    stage: string;
+    submitted_at: string;
+    grading_attempts: number;
+    grading_claimed_at: string | null;
+    last_error: string | null;
+    candidate_name: string | null;
+  }>;
+  stuck_screenings: Array<{
+    application_id: string;
+    candidate_name: string | null;
+    stage: string;
+    created_at: string;
+    screening_attempts: number;
+    screening_claimed_at: string | null;
+    last_error: string | null;
+  }>;
 }
 
 export interface HrEmailRetryPayload {
@@ -851,9 +874,10 @@ export type AutomationResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: AutomationError };
 
-export interface CvParsePayload {
-  cv_url: string;
-}
+/** PDF path sends cv_url; DOCX path sends pre-extracted cv_text. Exactly one should be set. */
+export type CvParsePayload =
+  | { cv_url: string; cv_text?: undefined }
+  | { cv_text: string; cv_url?: undefined };
 
 export interface CvParseData {
   parsed: {

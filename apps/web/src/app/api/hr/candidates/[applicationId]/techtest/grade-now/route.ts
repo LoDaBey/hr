@@ -4,6 +4,7 @@ import { jsonError, jsonOk } from '@/lib/http';
 import type { HrGradeNowResult } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
+// maxDuration: keep in sync with ROUTE_BUDGET_SECONDS in src/lib/automation.ts
 export const maxDuration = 60;
 
 export async function POST(

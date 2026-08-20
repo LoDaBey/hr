@@ -1,7 +1,9 @@
 import 'server-only';
+import mammoth from 'mammoth';
 import { signedDeliveryUrl } from '@/lib/cloudinary';
 import { runAutomation } from '@/lib/automation';
 import { one, query, tx } from '@/lib/db';
+import { MAX_ATTEMPTS } from '@/lib/pipeline/constants';
 import {
   auditAutoInviteSkipped,
   issueInvite,
@@ -24,6 +26,11 @@ import {
   formatHardRequirementExpected,
   formatHardRequirementGot,
 } from '@/lib/hard-requirements';
+
+/** Must fit inside the cv.parse task budget alongside the model call. */
+const DOCX_FETCH_TIMEOUT_MS = 8_000;
+/** Matches n8n's truncation so the logged payload equals what the model saw. */
+const CV_TEXT_MAX_CHARS = 15_000;
 
 const RECOMMENDATIONS: Recommendation[] = [
   'STRONG_SHORTLIST',
@@ -204,6 +211,77 @@ async function loadAnswers(applicationId: string): Promise<Record<string, unknow
   return answers;
 }
 
+/**
+ * Records a definite screening failure (automation ok:false or unusable input).
+ * Killed routes / aborts never reach here, so they must not burn an attempt.
+ */
+export async function recordScreeningFailure(input: {
+  applicationId: string;
+  candidateId: string;
+  jobId: string;
+  stage: Stage;
+  reason: string;
+  node: string;
+}): Promise<void> {
+  await insertWorkflowError({
+    action: 'screening.run',
+    node: input.node,
+    error_message: input.reason,
+    application_id: input.applicationId,
+    candidate_id: input.candidateId,
+    input_ref: { application_id: input.applicationId, reason: input.reason },
+  });
+
+  const bumped = await one<{ screening_attempts: number }>(
+    `UPDATE HRSYSTEM_applications
+     SET screening_attempts = screening_attempts + 1,
+         screening_claimed_at = NULL,
+         updated_at = now()
+     WHERE id = $1
+     RETURNING screening_attempts`,
+    [input.applicationId],
+  );
+  const attempts = bumped?.screening_attempts ?? 0;
+  if (attempts < MAX_ATTEMPTS) return;
+
+  const moved = await one<{ stage: Stage }>(
+    `UPDATE HRSYSTEM_applications
+     SET stage = 'INITIAL_SCREENING_REVIEW'::HRSYSTEM_app_stage, updated_at = now()
+     WHERE id = $1
+       AND stage IN ('APPLICATION_RECEIVED', 'CV_PROCESSING', 'INITIAL_SCREENING')
+       AND status = 'ACTIVE'
+     RETURNING stage`,
+    [input.applicationId],
+  );
+  if (!moved) return;
+
+  await appendEvent({
+    application_id: input.applicationId,
+    candidate_id: input.candidateId,
+    job_id: input.jobId,
+    event_type: 'SCREENING_EXHAUSTED',
+    from_stage: input.stage,
+    to_stage: 'INITIAL_SCREENING_REVIEW',
+    actor_type: 'SYSTEM',
+    actor_label: `Screening exhausted after ${attempts} attempts — ${input.reason}`,
+    payload: {
+      application_id: input.applicationId,
+      screening_attempts: attempts,
+      last_failure: input.reason,
+      source: input.node,
+    },
+  });
+}
+
+async function clearScreeningLeaseOnSuccess(applicationId: string): Promise<void> {
+  await one(
+    `UPDATE HRSYSTEM_applications
+     SET screening_attempts = 0, screening_claimed_at = NULL, updated_at = now()
+     WHERE id = $1`,
+    [applicationId],
+  );
+}
+
 export async function runCvParseAndScreening(applicationId: string): Promise<void> {
   try {
     const application = await one<Application>(
@@ -213,7 +291,17 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     if (!application) return;
 
     const job = await one<Job>(`SELECT * FROM HRSYSTEM_jobs WHERE id = $1`, [application.job_id]);
-    if (!job) return;
+    if (!job) {
+      await recordScreeningFailure({
+        applicationId,
+        candidateId: application.candidate_id,
+        jobId: application.job_id,
+        stage: application.stage,
+        reason: 'Job not found for application',
+        node: 'screening',
+      });
+      return;
+    }
 
     const document = await one<Document>(
       `SELECT * FROM HRSYSTEM_documents
@@ -224,17 +312,12 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     );
 
     let parsed: Record<string, unknown> | null = asRecord(document?.parsed);
+    const cvFormat = (document?.format ?? '').toLowerCase();
 
     if (document && document.parse_status === 'PENDING') {
-      const format = (document.format ?? '').toLowerCase();
-      if (format !== 'pdf') {
-        await one(
-          `UPDATE HRSYSTEM_documents SET parse_status = 'MANUAL' WHERE id = $1`,
-          [document.id],
-        );
-      } else {
+      if (cvFormat === 'pdf') {
         try {
-          const { url } = signedDeliveryUrl(document.public_id, document.resource_type, format);
+          const { url } = signedDeliveryUrl(document.public_id, document.resource_type, cvFormat);
           const result = await runAutomation<CvParseData>('cv.parse', { cv_url: url });
           if (result.ok) {
             parsed = asRecord(result.data.parsed);
@@ -265,8 +348,78 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
             [document.id],
           );
         }
+      } else if (cvFormat === 'docx') {
+        try {
+          const { url } = signedDeliveryUrl(document.public_id, document.resource_type, cvFormat);
+          const download = await fetch(url, {
+            signal: AbortSignal.timeout(DOCX_FETCH_TIMEOUT_MS),
+          });
+          if (!download.ok) {
+            throw new Error(`Failed to download DOCX CV (HTTP ${download.status})`);
+          }
+          const buffer = Buffer.from(await download.arrayBuffer());
+          const extracted = await mammoth.extractRawText({ buffer });
+          const cvText = extracted.value.trim().slice(0, CV_TEXT_MAX_CHARS);
+          if (!cvText) {
+            throw new Error('DOCX CV extraction produced empty text');
+          }
+
+          const result = await runAutomation<CvParseData>('cv.parse', { cv_text: cvText });
+          if (result.ok) {
+            parsed = asRecord(result.data.parsed);
+            await one(
+              `UPDATE HRSYSTEM_documents
+               SET raw_text = $1, parsed = $2::jsonb, parse_status = 'DONE'
+               WHERE id = $3`,
+              [result.data.raw_text, JSON.stringify(result.data.parsed ?? {}), document.id],
+            );
+          } else {
+            console.error('cv.parse failed', applicationId, result.error.message);
+            await insertWorkflowError({
+              action: 'cv.parse',
+              node: 'screening',
+              error_message: result.error.message,
+              application_id: applicationId,
+              candidate_id: application.candidate_id,
+            });
+            await one(
+              `UPDATE HRSYSTEM_documents SET parse_status = 'FAILED' WHERE id = $1`,
+              [document.id],
+            );
+          }
+        } catch (error) {
+          console.error('cv.parse failed', applicationId, error);
+          const message =
+            error instanceof Error ? error.message : 'DOCX CV extraction or parse failed';
+          await insertWorkflowError({
+            action: 'cv.parse',
+            node: 'screening',
+            error_message: message,
+            application_id: applicationId,
+            candidate_id: application.candidate_id,
+          });
+          await one(
+            `UPDATE HRSYSTEM_documents SET parse_status = 'FAILED' WHERE id = $1`,
+            [document.id],
+          );
+        }
+      } else {
+        await one(
+          `UPDATE HRSYSTEM_documents SET parse_status = 'MANUAL' WHERE id = $1`,
+          [document.id],
+        );
+        await insertWorkflowError({
+          action: 'cv.parse',
+          node: 'screening',
+          error_message: `CV format '${cvFormat || 'unknown'}' cannot be parsed automatically; marked for manual review`,
+          application_id: applicationId,
+          candidate_id: application.candidate_id,
+          input_ref: { document_id: document.id, format: cvFormat || null },
+        });
       }
     }
+
+    const screenedWithoutCv = parsed === null;
 
     const answers = await loadAnswers(applicationId);
     const hardFails = evaluateHardRequirements(job, answers, parsed);
@@ -287,6 +440,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     let missing = hardFails.filter((fail) => !fail.unevaluable).map((fail) => fail.label);
     let reasoning = 'Screening automation unavailable; queued for manual review.';
     let rawResponse: unknown = { error: 'screening.run was not called or failed' };
+    let screeningAutomationFailed = false;
 
     try {
       const result = await runAutomation<ScreeningRunData>('screening.run', {
@@ -337,22 +491,45 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         }
       } else {
         console.error('screening.run failed', applicationId, result.error.message);
-        await insertWorkflowError({
-          action: 'screening.run',
+        screeningAutomationFailed = true;
+        await recordScreeningFailure({
+          applicationId,
+          candidateId: application.candidate_id,
+          jobId: application.job_id,
+          stage: application.stage,
+          reason: result.error.message || 'screening.run returned ok: false',
           node: 'screening',
-          error_message: result.error.message,
-          application_id: applicationId,
-          candidate_id: application.candidate_id,
         });
         rawResponse = result.error;
       }
     } catch (error) {
       console.error('screening.run failed', applicationId, error);
-      rawResponse = { error: error instanceof Error ? error.message : 'screening.run failed' };
+      screeningAutomationFailed = true;
+      const message = error instanceof Error ? error.message : 'screening.run failed';
+      await recordScreeningFailure({
+        applicationId,
+        candidateId: application.candidate_id,
+        jobId: application.job_id,
+        stage: application.stage,
+        reason: message,
+        node: 'screening',
+      });
+      rawResponse = { error: message };
     }
 
     if (rejectHardFail) decision = 'RECOMMEND_REJECT';
     else if (hardFails.some((fail) => !fail.unevaluable)) decision = 'MANUAL_REVIEW';
+
+    // Blind (CV-less) scores must not present as shortlist recommendations.
+    if (
+      screenedWithoutCv &&
+      !rejectHardFail &&
+      (decision === 'SHORTLIST' || decision === 'STRONG_SHORTLIST')
+    ) {
+      decision = 'MANUAL_REVIEW';
+    }
+
+    const withoutCvReason = `Screened without CV content — ${cvFormat || 'unknown'} could not be parsed. Score reflects application answers only.`;
 
     await one(
       `INSERT INTO HRSYSTEM_screening_results (
@@ -373,11 +550,32 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
         'n8n/screening.run',
         JSON.stringify(
           rawResponse && typeof rawResponse === 'object'
-            ? { ...(rawResponse as Record<string, unknown>), hard_requirement_failures: hardFails }
-            : { hard_requirement_failures: hardFails, screening: rawResponse },
+            ? {
+                ...(rawResponse as Record<string, unknown>),
+                hard_requirement_failures: hardFails,
+                ...(screenedWithoutCv ? { screened_without_cv: true } : {}),
+              }
+            : {
+                hard_requirement_failures: hardFails,
+                screening: rawResponse,
+                ...(screenedWithoutCv ? { screened_without_cv: true } : {}),
+              },
         ),
       ],
     );
+
+    // Degraded path still produced a result for HR — clear the lease. Attempts were
+    // already incremented inside recordScreeningFailure when the automation failed.
+    if (!screeningAutomationFailed) {
+      await clearScreeningLeaseOnSuccess(applicationId);
+    } else {
+      await one(
+        `UPDATE HRSYSTEM_applications
+         SET screening_claimed_at = NULL, updated_at = now()
+         WHERE id = $1`,
+        [applicationId],
+      );
+    }
 
     const candidate = await one<{ email: string; full_name: string }>(
       `SELECT email, full_name FROM HRSYSTEM_candidates WHERE id = $1`,
@@ -403,6 +601,7 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       reason = `Score ${score} at or below auto-reject threshold (${settings.auto_reject_max_score})`;
     } else if (
       settings.auto_shortlist_enabled &&
+      !screenedWithoutCv &&
       score !== null &&
       score >= shortlistMinScore &&
       confidence !== null &&
@@ -413,6 +612,12 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       reason = usedJobThreshold
         ? `Score ${score} met this job's shortlist threshold (${shortlistMinScore}) with confidence ${confidence}`
         : `Score ${score} met the default shortlist threshold (${shortlistMinScore}) with confidence ${confidence}`;
+    }
+
+    // Still score answers-only, but never auto-shortlist a CV-less screening.
+    if (screenedWithoutCv && outcome !== 'reject') {
+      outcome = 'review';
+      reason = withoutCvReason;
     }
 
     const toStage: Stage =
@@ -532,16 +737,32 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     }
   } catch (error) {
     console.error('runCvParseAndScreening', applicationId, error);
+    const message = error instanceof Error ? error.message : 'runCvParseAndScreening failed';
     try {
-      await one(
-        `UPDATE HRSYSTEM_applications
-         SET stage = 'INITIAL_SCREENING_REVIEW'
-         WHERE id = $1
-           AND stage IN ('APPLICATION_RECEIVED', 'CV_PROCESSING', 'INITIAL_SCREENING')`,
+      const application = await one<Application>(
+        `SELECT * FROM HRSYSTEM_applications WHERE id = $1`,
         [applicationId],
       );
-    } catch (stageError) {
-      console.error('failed to move application to review', applicationId, stageError);
+      if (application) {
+        await recordScreeningFailure({
+          applicationId,
+          candidateId: application.candidate_id,
+          jobId: application.job_id,
+          stage: application.stage,
+          reason: message,
+          node: 'screening',
+        });
+      } else {
+        await insertWorkflowError({
+          action: 'screening.run',
+          node: 'screening',
+          error_message: message,
+          application_id: applicationId,
+          input_ref: { application_id: applicationId, reason: 'application_missing_in_catch' },
+        });
+      }
+    } catch (recordError) {
+      console.error('failed to record screening failure', applicationId, recordError);
     }
   }
 }

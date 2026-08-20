@@ -48,9 +48,9 @@ export function CvUpload({
         label="CV"
         aria-label="CV"
         required={required}
-        accept=".pdf,.doc,.docx,application/pdf"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         clearable
-        placeholder={value ? value.original_name : 'PDF, DOC, or DOCX'}
+        placeholder={value ? value.original_name : 'PDF or Word (.docx)'}
         onChange={handleFile}
         error={error ?? localError}
         disabled={uploading}

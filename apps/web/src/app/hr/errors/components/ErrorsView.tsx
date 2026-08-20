@@ -128,14 +128,18 @@ export function ErrorsView({
     return <ErrorState title="Errors unavailable" message="Could not load workflow errors." />;
   }
 
-  const { errors, failed_emails } = data;
-  const empty = errors.length === 0 && failed_emails.length === 0;
+  const { errors, failed_emails, stuck_gradings, stuck_screenings } = data;
+  const empty =
+    errors.length === 0 &&
+    failed_emails.length === 0 &&
+    stuck_gradings.length === 0 &&
+    stuck_screenings.length === 0;
 
   return (
     <Stack gap={density.sectionGap}>
       <PageHeader
         title="Errors"
-        subtitle="Failed emails and open workflow errors. Retry a bounce, then drain the queue."
+        subtitle="Failed emails, open workflow errors, and candidates stuck awaiting grading or screening."
       />
 
       {showDispatchButton ? (
@@ -203,7 +207,7 @@ export function ErrorsView({
       {empty ? (
         <EmptyState
           title="All clear"
-          description="No failed emails or open workflow errors. When an invite bounces, it will show up here."
+          description="No failed emails, open workflow errors, stuck sittings, or stuck screenings. When an invite bounces or grading or screening stalls, it will show up here."
         />
       ) : null}
 
@@ -303,6 +307,131 @@ export function ErrorsView({
                   <Table.Td>
                     <Text size="sm" lineClamp={3}>
                       {row.error_message ?? '—'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {datetime(row.created_at)}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </SectionCard>
+
+      <SectionCard title={`Stuck gradings (${stuck_gradings.length})`}>
+        {stuck_gradings.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            No sittings stuck in a submitted stage without a successful grade.
+          </Text>
+        ) : (
+          <Table highlightOnHover horizontalSpacing="md" verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Candidate</Table.Th>
+                <Table.Th>Kind</Table.Th>
+                <Table.Th>Attempts</Table.Th>
+                <Table.Th>Lease</Table.Th>
+                <Table.Th>Last error</Table.Th>
+                <Table.Th>Submitted</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {stuck_gradings.map((row) => (
+                <Table.Tr key={row.candidate_assessment_id}>
+                  <Table.Td>
+                    <Text fw={500} size="sm">
+                      {row.candidate_name ?? '—'}
+                    </Text>
+                    <Anchor
+                      component={Link}
+                      href={`/hr/candidates/${row.application_id}`}
+                      size="sm"
+                      aria-label={`Open candidate ${row.candidate_name ?? row.application_id}`}
+                    >
+                      View candidate
+                    </Anchor>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{row.kind}</Text>
+                    <Text size="xs" c="dimmed">
+                      {row.stage}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{row.grading_attempts}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {row.grading_claimed_at ? datetime(row.grading_claimed_at) : '—'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed" lineClamp={2}>
+                      {row.last_error ?? '—'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {datetime(row.submitted_at)}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
+      </SectionCard>
+
+      <SectionCard title={`Stuck screenings (${stuck_screenings.length})`}>
+        {stuck_screenings.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            No applications stuck awaiting screening without a result.
+          </Text>
+        ) : (
+          <Table highlightOnHover horizontalSpacing="md" verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Candidate</Table.Th>
+                <Table.Th>Stage</Table.Th>
+                <Table.Th>Attempts</Table.Th>
+                <Table.Th>Lease</Table.Th>
+                <Table.Th>Last error</Table.Th>
+                <Table.Th>Created</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {stuck_screenings.map((row) => (
+                <Table.Tr key={row.application_id}>
+                  <Table.Td>
+                    <Text fw={500} size="sm">
+                      {row.candidate_name ?? '—'}
+                    </Text>
+                    <Anchor
+                      component={Link}
+                      href={`/hr/candidates/${row.application_id}`}
+                      size="sm"
+                      aria-label={`Open candidate ${row.candidate_name ?? row.application_id}`}
+                    >
+                      View candidate
+                    </Anchor>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{row.stage}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{row.screening_attempts}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {row.screening_claimed_at ? datetime(row.screening_claimed_at) : '—'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed" lineClamp={2}>
+                      {row.last_error ?? '—'}
                     </Text>
                   </Table.Td>
                   <Table.Td>

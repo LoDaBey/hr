@@ -44,6 +44,7 @@ export type AssessmentReviewData = {
   submitted_at: string | null;
   overall_feedback: string | null;
   has_overall_evaluation: boolean;
+  grading_failed: boolean;
   grading_error: string | null;
   questions: AssessmentReviewQuestion[];
 };
@@ -127,14 +128,16 @@ function ScoreHeader({
 }) {
   const [grading, setGrading] = useState(false);
   const awaitingGrading =
-    !review.grading_error && !review.has_overall_evaluation && review.status === 'SUBMITTED';
+    !review.grading_error &&
+    !review.grading_failed &&
+    !review.has_overall_evaluation &&
+    review.status === 'SUBMITTED';
   const minutesWaiting = minutesSince(review.submitted_at);
   const showGradeNow =
-    awaitingGrading &&
-    applicationId &&
-    gradeKind &&
-    minutesWaiting != null &&
-    minutesWaiting >= 5;
+    Boolean(applicationId && gradeKind) &&
+    (review.grading_failed ||
+      Boolean(review.grading_error) ||
+      (awaitingGrading && minutesWaiting != null && minutesWaiting >= 5));
 
   async function gradeNow() {
     if (!applicationId || !gradeKind) return;
@@ -154,11 +157,39 @@ function ScoreHeader({
     }
   }
 
-  if (review.grading_error && !review.has_overall_evaluation) {
+  const gradeNowButton =
+    showGradeNow ? (
+      <Group gap="sm">
+        <MotionButton
+          className="cursor-pointer rounded-lg"
+          aria-label="Grade submission now"
+          color="warning"
+          loading={grading}
+          disabled={grading}
+          onClick={() => void gradeNow()}
+        >
+          Grade now
+        </MotionButton>
+        {review.grading_failed || review.grading_error ? (
+          <Text size="sm" c="dimmed">
+            Retry grading now.
+          </Text>
+        ) : (
+          <Text size="sm" c="dimmed">
+            Submitted {minutesWaiting} minutes ago — use if grading is stuck.
+          </Text>
+        )}
+      </Group>
+    ) : null;
+
+  if ((review.grading_error || review.grading_failed) && !review.has_overall_evaluation) {
     return (
-      <Alert color="danger" title="Grading failed — review manually">
-        {review.grading_error}
-      </Alert>
+      <Stack gap="sm">
+        <Alert color="danger" title="Grading failed — review manually">
+          {review.grading_error ?? review.overall_feedback ?? 'Grading failed'}
+        </Alert>
+        {gradeNowButton}
+      </Stack>
     );
   }
 
@@ -174,23 +205,7 @@ function ScoreHeader({
             AI grading is in progress — this page refreshes automatically.
           </Text>
         </Group>
-        {showGradeNow ? (
-          <Group gap="sm">
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Grade submission now"
-              color="warning"
-              loading={grading}
-              disabled={grading}
-              onClick={() => void gradeNow()}
-            >
-              Grade now
-            </MotionButton>
-            <Text size="sm" c="dimmed">
-              Submitted {minutesWaiting} minutes ago — use if grading is stuck.
-            </Text>
-          </Group>
-        ) : null}
+        {gradeNowButton}
       </Stack>
     );
   }

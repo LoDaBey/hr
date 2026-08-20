@@ -2,6 +2,7 @@ import { runPipelineSweep } from '@/lib/pipeline/sweep';
 import { jsonError, jsonOk } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
+// maxDuration: keep in sync with ROUTE_BUDGET_SECONDS in src/lib/automation.ts
 export const maxDuration = 60;
 
 function authorizeCron(req: Request): boolean {

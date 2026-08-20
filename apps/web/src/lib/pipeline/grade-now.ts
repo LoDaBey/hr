@@ -57,6 +57,14 @@ export async function gradeSittingNow(input: {
     return { ok: false, reason: 'already_graded' };
   }
 
+  // Manual Grade now is the escape hatch — reset attempt budget and lease first.
+  await one(
+    `UPDATE HRSYSTEM_candidate_assessments
+     SET grading_attempts = 0, grading_claimed_at = NULL, updated_at = now()
+     WHERE id = $1`,
+    [sitting.id],
+  );
+
   await appendEvent({
     application_id: sitting.application_id,
     candidate_id: sitting.candidate_id,

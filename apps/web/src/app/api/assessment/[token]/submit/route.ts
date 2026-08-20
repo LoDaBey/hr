@@ -8,6 +8,7 @@ import { gradeAssessment } from '@/lib/pipeline/grading';
 import type { CandidateAssessmentSubmitResult } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
+// maxDuration: keep in sync with ROUTE_BUDGET_SECONDS in src/lib/automation.ts
 export const maxDuration = 60;
 
 const bodySchema = z.object({
