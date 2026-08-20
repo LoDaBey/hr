@@ -34,7 +34,7 @@ export function PublicPageShell({
           py="sm"
         >
           <Group justify="flex-start" align="center">
-            <BrandLogo height={36} priority />
+            <BrandLogo height={36} priority onDark />
           </Group>
         </Container>
       </Box>

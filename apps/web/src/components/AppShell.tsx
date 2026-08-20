@@ -300,7 +300,7 @@ export function AppShell({
             <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
               {railCollapsed ? (
                 <Stack gap="xs" align="center">
-                  <BrandLogo height={28} markOnly />
+                  <BrandLogo height={28} markOnly onDark />
                   {!isMobile ? (
                     <Tooltip label="Expand sidebar" position="right">
                       <ActionIcon
@@ -327,7 +327,7 @@ export function AppShell({
                   px={4}
                   align="center"
                 >
-                  <BrandLogo height={28} />
+                  <BrandLogo height={28} onDark />
                   {!isMobile ? (
                     <Tooltip label="Collapse sidebar" position="right">
                       <motion.div
