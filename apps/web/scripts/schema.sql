@@ -83,10 +83,12 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_jobs (
       --   "value":["Completed","Exempted","Not applicable"],"on_fail":"RECOMMEND_REJECT"}]
       -- Migration 006: op "==" with array value → "in" (see scripts/migrations/006_*.sql)
   soft_requirements      jsonb NOT NULL DEFAULT '[]'::jsonb,
-      -- [{"key":"aws","label":"AWS","weight":10}]
+      -- [{"key":"aws","label":"AWS","weight":10}]  — legacy; editor no longer writes these
+  screening_criteria     text,                        -- free-text "who are you looking for?"
   screening_weights      jsonb NOT NULL DEFAULT
       '{"skills":40,"experience":30,"answers":20,"education":10}'::jsonb,
-  shortlist_threshold    int NOT NULL DEFAULT 70,
+  shortlist_threshold    int,                         -- null → use settings.auto_shortlist_min_score
+
   -- pipeline config
   cv_required            boolean NOT NULL DEFAULT true,
   allow_reapply_days     int NOT NULL DEFAULT 180,
@@ -155,7 +157,9 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_assessment_questions (
   correct_key   text,                                 -- MCQ auto-scoring; NEVER sent to candidate
   language      text,                                 -- CODING: js/py/sql...
   max_score     int NOT NULL DEFAULT 10,
-  rubric        text                                  -- fed to the AI evaluator
+  rubric        text,                                 -- fed to the AI evaluator
+  answer_mode   text NOT NULL DEFAULT 'written'
+                CHECK (answer_mode IN ('written', 'spoken'))  -- TECH_TEST: spoken = answer to camera
 );
 CREATE INDEX IF NOT EXISTS HRSYSTEM_idx_aq_assessment ON HRSYSTEM_assessment_questions(assessment_id, order_index);
 
@@ -292,6 +296,8 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_candidate_assessments (
   reminder_sent_at  timestamptz,
   grading_attempts  int NOT NULL DEFAULT 0,
   preflight_external_display boolean,
+  spoken_question_timings jsonb NOT NULL DEFAULT '[]'::jsonb, -- [{question_id, shown_at, left_at}]
+  transcript        text,                             -- from recording.grade
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now()
 );

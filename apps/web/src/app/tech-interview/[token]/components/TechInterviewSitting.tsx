@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Group, Loader, Stack, Text } from '@mantine/core';
+import { Alert, Group, Loader, Stack, Text, UnstyledButton } from '@mantine/core';
 import { isAnswered } from '@/app/assessment/[token]/components/AssessmentQuestionInput';
 import { MotionButton } from '@/components/MotionButton';
 import { api } from '@/lib/api';
@@ -9,11 +9,25 @@ import { palette } from '@/theme';
 import type {
   CandidateAssessmentGetResult,
   CandidateAssessmentStartResult,
+  CandidateQuestion,
 } from '@/types/api';
 import { SelfViewThumbnail } from './SelfViewThumbnail';
 import { SubmitConfirmationOverlay } from './SubmitConfirmationOverlay';
 import { TechInterviewHeader } from './TechInterviewHeader';
 import { TechInterviewQuestionCard } from './TechInterviewQuestionCard';
+
+type SpokenTiming = {
+  question_id: string;
+  shown_at: string;
+  left_at: string | null;
+};
+
+function spokenLabel(question: CandidateQuestion, answered: boolean): string {
+  if (question.answer_mode === 'spoken') {
+    return answered ? 'Answered aloud' : 'Speak aloud';
+  }
+  return answered ? 'Answered' : 'Not answered';
+}
 
 export function TechInterviewSitting({
   token,
@@ -47,6 +61,9 @@ export function TechInterviewSitting({
     return map;
   });
   const answersRef = useRef(answers);
+  const [timings, setTimings] = useState<SpokenTiming[]>([]);
+  const timingsRef = useRef(timings);
+  const shownAtRef = useRef<string | null>(null);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
   const [recordingElapsedMs, setRecordingElapsedMs] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -69,6 +86,10 @@ export function TechInterviewSitting({
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+
+  useEffect(() => {
+    timingsRef.current = timings;
+  }, [timings]);
 
   useEffect(() => {
     const started = new Date(start.started_at).getTime();
@@ -98,6 +119,40 @@ export function TechInterviewSitting({
     };
   }, [paused, start.expires_at, start.server_time]);
 
+  const questions = data.questions;
+  const current = questions[index];
+
+  const closeSpokenTiming = useCallback((questionId: string) => {
+    const shownAt = shownAtRef.current;
+    if (!shownAt) return;
+    const leftAt = new Date().toISOString();
+    shownAtRef.current = null;
+    setTimings((prev) => {
+      const without = prev.filter((row) => row.question_id !== questionId);
+      return [...without, { question_id: questionId, shown_at: shownAt, left_at: leftAt }];
+    });
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: {
+        mode: 'spoken',
+        shown_at: shownAt,
+        left_at: leftAt,
+      },
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (!current) return;
+    if (current.answer_mode !== 'spoken') {
+      shownAtRef.current = null;
+      return;
+    }
+    shownAtRef.current = new Date().toISOString();
+    return () => {
+      closeSpokenTiming(current.id);
+    };
+  }, [closeSpokenTiming, current]);
+
   const persist = useCallback(async () => {
     setSaving(true);
     try {
@@ -107,7 +162,10 @@ export function TechInterviewSitting({
       }));
       await api(`/api/techtest/${encodeURIComponent(token)}/save`, {
         method: 'POST',
-        body: { answers: payload },
+        body: {
+          answers: payload,
+          spoken_question_timings: timingsRef.current.filter((row) => row.left_at),
+        },
       });
       setSavedAt(Date.now());
     } catch {
@@ -125,24 +183,29 @@ export function TechInterviewSitting({
   }, [persist]);
 
   useEffect(() => {
-    if (submitting) setConfirmOpen(true);
-  }, [submitting]);
-
-  useEffect(() => {
     if (paused) return;
     if (remainingMs != null && remainingMs <= 0) {
+      if (current?.answer_mode === 'spoken') {
+        closeSpokenTiming(current.id);
+      }
       void onSubmitRequest(answersRef.current);
     }
-  }, [onSubmitRequest, paused, remainingMs]);
+  }, [closeSpokenTiming, current, onSubmitRequest, paused, remainingMs]);
 
-  const questions = data.questions;
-  const current = questions[index];
   const unanswered = useMemo(
     () => questions.filter((q) => !isAnswered(answers[q.id])),
     [answers, questions],
   );
 
   const savedLabel = saving ? 'Saving…' : savedAt ? 'Saved' : null;
+  const confirmVisible = confirmOpen || Boolean(submitting);
+
+  function goTo(nextIndex: number) {
+    if (current?.answer_mode === 'spoken') {
+      closeSpokenTiming(current.id);
+    }
+    setIndex(nextIndex);
+  }
 
   if (!recordingReady) {
     return (
@@ -183,63 +246,115 @@ export function TechInterviewSitting({
         </Alert>
       ) : null}
 
-      <Stack gap="lg" py="lg" px="md" align="center">
-        {current ? (
-          <TechInterviewQuestionCard
-            question={current}
-            index={index}
-            total={questions.length}
-            value={answers[current.id]}
-            savedLabel={savedLabel}
-            onChange={(next) => setAnswers((prev) => ({ ...prev, [current.id]: next }))}
-            onPasteDetected={onPasteDetected}
-          />
-        ) : null}
+      <Group align="flex-start" gap="md" py="lg" px="md" justify="center" wrap="nowrap">
+        <Stack
+          gap={4}
+          p="sm"
+          visibleFrom="sm"
+          style={{
+            width: 160,
+            flexShrink: 0,
+            background: palette.surface,
+            border: `1px solid ${palette.border}`,
+            borderRadius: 8,
+          }}
+        >
+          <Text size="xs" c="dimmed" mb={4} fw={600} tt="uppercase" style={{ letterSpacing: '0.04em' }}>
+            Questions
+          </Text>
+          {questions.map((q, i) => {
+            const answered = isAnswered(answers[q.id]);
+            const active = i === index;
+            return (
+              <UnstyledButton
+                key={q.id}
+                className="cursor-pointer rounded-lg"
+                aria-label={`Go to question ${i + 1}, ${spokenLabel(q, answered)}`}
+                onClick={() => goTo(i)}
+                style={{
+                  padding: '6px 8px',
+                  textAlign: 'left',
+                  background: active ? `${palette.accent}18` : 'transparent',
+                  borderLeft: active ? `3px solid ${palette.accent}` : '3px solid transparent',
+                  color: answered ? palette.success : palette.ink,
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                }}
+              >
+                {i + 1}. {spokenLabel(q, answered)}
+              </UnstyledButton>
+            );
+          })}
+        </Stack>
 
-        <Group justify="space-between" maw={860} w="100%">
-          <MotionButton
-            className="cursor-pointer rounded-lg"
-            aria-label="Previous question"
-            variant="default"
-            disabled={index === 0}
-            onClick={() => setIndex((i) => Math.max(0, i - 1))}
-          >
-            Previous
-          </MotionButton>
-          {index < questions.length - 1 ? (
+        <Stack gap="lg" align="center" style={{ flex: 1, minWidth: 0 }}>
+          {current ? (
+            <TechInterviewQuestionCard
+              question={current}
+              index={index}
+              total={questions.length}
+              value={answers[current.id]}
+              savedLabel={savedLabel}
+              onChange={(next) => setAnswers((prev) => ({ ...prev, [current.id]: next }))}
+              onPasteDetected={onPasteDetected}
+            />
+          ) : null}
+
+          <Group justify="space-between" maw={860} w="100%">
             <MotionButton
               className="cursor-pointer rounded-lg"
-              aria-label="Next question"
-              color="accent"
-              onClick={() => setIndex((i) => Math.min(questions.length - 1, i + 1))}
+              aria-label="Previous question"
+              variant="default"
+              disabled={index === 0}
+              onClick={() => goTo(Math.max(0, index - 1))}
             >
-              Next
+              Previous
             </MotionButton>
-          ) : (
-            <MotionButton
-              className="cursor-pointer rounded-lg"
-              aria-label="Submit recorded interview"
-              color="accent"
-              loading={submitting}
-              disabled={submitting}
-              onClick={() => setConfirmOpen(true)}
-            >
-              Submit
-            </MotionButton>
-          )}
-        </Group>
-      </Stack>
+            {index < questions.length - 1 ? (
+              <MotionButton
+                className="cursor-pointer rounded-lg"
+                aria-label="Next question"
+                color="accent"
+                onClick={() => goTo(Math.min(questions.length - 1, index + 1))}
+              >
+                Next
+              </MotionButton>
+            ) : (
+              <MotionButton
+                className="cursor-pointer rounded-lg"
+                aria-label="Submit recorded interview"
+                color="accent"
+                loading={submitting}
+                disabled={submitting}
+                onClick={() => {
+                  if (current?.answer_mode === 'spoken') {
+                    closeSpokenTiming(current.id);
+                  }
+                  setConfirmOpen(true);
+                }}
+              >
+                Submit
+              </MotionButton>
+            )}
+          </Group>
+        </Stack>
+      </Group>
 
       <SelfViewThumbnail stream={stream} />
 
       <SubmitConfirmationOverlay
-        open={confirmOpen}
+        open={confirmVisible}
         submitting={submitting}
         unansweredCount={unanswered.length}
         onCancel={() => {
           if (!submitting) setConfirmOpen(false);
         }}
-        onConfirm={() => void onSubmitRequest(answersRef.current)}
+        onConfirm={() => {
+          if (current?.answer_mode === 'spoken') {
+            closeSpokenTiming(current.id);
+          }
+          void onSubmitRequest(answersRef.current);
+        }}
       />
     </div>
   );

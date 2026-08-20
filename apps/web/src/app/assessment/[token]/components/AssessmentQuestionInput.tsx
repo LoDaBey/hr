@@ -159,9 +159,20 @@ export function isAnswered(value: unknown): boolean {
   if (value == null) return false;
   if (typeof value === 'string') return value.trim() !== '';
   if (typeof value === 'object') {
-    const row = value as { text?: unknown; key?: unknown };
+    const row = value as { mode?: unknown; left_at?: unknown; text?: unknown; key?: unknown };
+    if (row.mode === 'spoken') {
+      return typeof row.left_at === 'string' && row.left_at.length > 0;
+    }
     if (typeof row.text === 'string') return row.text.trim() !== '';
     if (typeof row.key === 'string') return row.key.trim() !== '';
   }
   return true;
+}
+
+export function isSpokenAnswer(value: unknown): boolean {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      (value as { mode?: unknown }).mode === 'spoken',
+  );
 }

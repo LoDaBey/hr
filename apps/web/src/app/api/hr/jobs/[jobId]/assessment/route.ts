@@ -36,6 +36,7 @@ const bodySchema = z.object({
         language: z.string().nullable().optional(),
         max_score: z.number().int().positive(),
         rubric: z.string().optional(),
+        answer_mode: z.enum(['written', 'spoken']).optional(),
       }),
     )
     .min(1),

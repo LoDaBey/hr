@@ -18,6 +18,7 @@ import { rememberQuestions } from '@/lib/question-library';
 import { toastError, toastSuccess } from '@/lib/toast';
 import { assignQuestionKeys } from '@/lib/question-key';
 import { publicJobUrl } from '@/lib/public-job-url';
+import { techTestRulesFromDraft } from '@/lib/tech-test-rules';
 import { density } from '@/theme';
 import type {
   HrJobsAssessmentSetResult,
@@ -30,10 +31,8 @@ import type { HardRequirement, JobQuestion, JobStatus } from '@/types/domain';
 import type {
   AssessmentDraft,
   DemographicRuleState,
-  HardDraft,
   JobEditorBasicsValues,
   QuestionDraft,
-  SoftDraft,
 } from '@/types/job-editor';
 import { parseScreeningWeights } from '@/types/job-editor';
 import {
@@ -47,14 +46,9 @@ import { EditorSection } from './EditorSection';
 import { JobStatusBadge } from './JobStatusBadge';
 import { JobWizardReview } from './JobWizardReview';
 import { QuestionsSection } from './QuestionsSection';
-import { ScreeningRulesSection } from './ScreeningRulesSection';
+import { ScreeningCriteriaSection } from './ScreeningCriteriaSection';
 import { ScreeningScoreSection } from './ScreeningScoreSection';
 import { ShareLinkPanel } from './ShareLinkPanel';
-
-const YEARS_EXPERIENCE_FIELD = {
-  value: 'years_experience',
-  label: 'Years of experience',
-} as const;
 
 const STEPS = [
   {
@@ -105,10 +99,7 @@ function questionsFromJob(questions: JobQuestion[]): QuestionDraft[] {
   }));
 }
 
-function extractDemographicAndHard(value: unknown): {
-  demographic: DemographicRuleState;
-  hardRows: HardDraft[];
-} {
+function extractDemographic(value: unknown): DemographicRuleState {
   const demographic: DemographicRuleState = {
     ageMin: '',
     ageMax: '',
@@ -116,10 +107,9 @@ function extractDemographicAndHard(value: unknown): {
     militaryAccepted: [],
     militaryOnFail: DEFAULT_HARD_FAIL,
   };
-  const hardRows: HardDraft[] = [];
 
   if (!Array.isArray(value)) {
-    return { demographic, hardRows };
+    return demographic;
   }
 
   for (const item of value) {
@@ -143,52 +133,10 @@ function extractDemographicAndHard(value: unknown): {
             : [String(row.value)];
         demographic.militaryOnFail = row.on_fail ?? DEFAULT_HARD_FAIL;
       }
-      continue;
     }
-    hardRows.push({
-      fieldKey: row.key ?? '',
-      op: row.op ?? '>=',
-      value: row.value == null ? '' : String(row.value),
-      on_fail: row.on_fail ?? DEFAULT_HARD_FAIL,
-    });
   }
 
-  return { demographic, hardRows };
-}
-
-function softFromJob(value: unknown): SoftDraft[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((item) => {
-    const row = item as { key?: string; weight?: number };
-    return {
-      fieldKey: row.key ?? 'years_experience',
-      weight: Number(row.weight) || 5,
-    };
-  });
-}
-
-function fieldLabel(
-  fieldKey: string,
-  questions: Array<{ key: string; draftId: string; label: string }>,
-): string {
-  if (fieldKey === YEARS_EXPERIENCE_FIELD.value) return YEARS_EXPERIENCE_FIELD.label;
-  const q = questions.find(
-    (row) => row.key === fieldKey || `draft:${row.draftId}` === fieldKey,
-  );
-  return q?.label?.trim() || fieldKey;
-}
-
-function resolveFieldKey(
-  fieldKey: string,
-  questions: Array<{ key: string; draftId: string }>,
-): string {
-  if (fieldKey === YEARS_EXPERIENCE_FIELD.value) return YEARS_EXPERIENCE_FIELD.value;
-  if (fieldKey.startsWith('draft:')) {
-    const draftIdValue = fieldKey.slice('draft:'.length);
-    const q = questions.find((row) => row.draftId === draftIdValue);
-    return q?.key || fieldKey;
-  }
-  return fieldKey;
+  return demographic;
 }
 
 function buildDemographicHard(
@@ -256,7 +204,7 @@ export function JobWizard({
   onPublished?: (jobId: string) => void;
 }) {
   const job = initial?.job;
-  const initialParsed = extractDemographicAndHard(job?.hard_requirements);
+  const initialDemographic = extractDemographic(job?.hard_requirements);
 
   const [active, setActive] = useState(() =>
     Math.min(LAST_STEP, Math.max(0, initialStep)),
@@ -270,8 +218,6 @@ export function JobWizard({
   const isLive = jobStatus === 'OPEN';
   const wizardNav = !isLive;
 
-  const [hardRows, setHardRows] = useState<HardDraft[]>(() => initialParsed.hardRows);
-  const [softRows, setSoftRows] = useState<SoftDraft[]>(() => softFromJob(job?.soft_requirements));
   const [questions, setQuestions] = useState<QuestionDraft[]>(() =>
     questionsFromJob(initial?.questions ?? []),
   );
@@ -287,7 +233,7 @@ export function JobWizard({
       ? assessmentDraftFromDetail(activePaper)
       : createEmptyAssessmentDraft('TECH_TEST');
   });
-  const [demographic, setDemographic] = useState<DemographicRuleState>(() => initialParsed.demographic);
+  const [demographic, setDemographic] = useState<DemographicRuleState>(() => initialDemographic);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -310,7 +256,8 @@ export function JobWizard({
       currency: normalizeJobCurrency(job?.currency),
       vacancies: job?.vacancies ?? 1,
       application_deadline: job?.application_deadline ?? null,
-      shortlist_threshold: job?.shortlist_threshold ?? 70,
+      shortlist_threshold: job?.shortlist_threshold ?? '',
+      screening_criteria: job?.screening_criteria ?? '',
       screening_weights: parseScreeningWeights(job?.screening_weights),
       cv_required: job?.cv_required ?? true,
       ask_age: job?.ask_age ?? false,
@@ -334,18 +281,11 @@ export function JobWizard({
     return publicJobUrl(jobSlug);
   }, [jobSlug, jobStatus]);
 
-  const fieldOptions = useMemo(() => {
-    const questionOptions = questions.map((q) => ({
-      value: q.key || `draft:${q.draftId}`,
-      label: q.label.trim() || 'Untitled question',
-    }));
-    return [YEARS_EXPERIENCE_FIELD, ...questionOptions];
-  }, [questions]);
-
   const questionsReady = questions.some((q) => q.label.trim() !== '');
   const step1Valid = form.values.title.trim() !== '';
   const requiredFieldsComplete = step1Valid;
   const step2Valid = questionsReady;
+  const screeningCriteriaReady = form.values.screening_criteria.trim().length > 0;
 
   function markDirty() {
     setDirty(true);
@@ -357,49 +297,17 @@ export function JobWizard({
     return questions.map((q, index) => ({ ...q, key: keys[index]! }));
   }
 
-  function buildHard(questionsWithKeys: QuestionDraft[]): HardRequirement[] {
-    const fromRows: HardRequirement[] = hardRows
-      .filter((row) => row.fieldKey)
-      .map((row) => {
-        const key = resolveFieldKey(row.fieldKey, questionsWithKeys);
-        let value: unknown = row.value;
-        if (row.op === 'truthy') value = true;
-        else if (row.value !== '' && !Number.isNaN(Number(row.value))) value = Number(row.value);
-        return {
-          key,
-          label: fieldLabel(row.fieldKey, questionsWithKeys),
-          op: row.op,
-          value,
-          on_fail: row.on_fail,
-        };
-      });
-
-    return [
-      ...fromRows,
-      ...buildDemographicHard(
-        form.values.ask_age,
-        form.values.ask_military_status,
-        demographic,
-      ),
-    ];
-  }
-
-  function buildSoft(questionsWithKeys: QuestionDraft[]) {
-    return softRows
-      .filter((row) => row.fieldKey)
-      .map((row) => {
-        const key = resolveFieldKey(row.fieldKey, questionsWithKeys);
-        return {
-          key,
-          label: fieldLabel(row.fieldKey, questionsWithKeys),
-          weight: Math.min(20, Math.max(1, Number(row.weight) || 5)),
-        };
-      });
+  function buildHard(): HardRequirement[] {
+    return buildDemographicHard(
+      form.values.ask_age,
+      form.values.ask_military_status,
+      demographic,
+    );
   }
 
   async function saveBasicsAndRequirements(
     currentJobId: string | null,
-    questionsWithKeys: QuestionDraft[],
+    _questionsWithKeys: QuestionDraft[],
   ): Promise<{ id: string; slug: string; status: string }> {
     const values = form.values;
     const payload = {
@@ -416,14 +324,19 @@ export function JobWizard({
       currency: values.currency || null,
       vacancies: Math.max(1, Number(values.vacancies) || 1),
       application_deadline: values.application_deadline,
-      shortlist_threshold: Number(values.shortlist_threshold) || 70,
+      shortlist_threshold:
+        values.shortlist_threshold === '' ||
+        values.shortlist_threshold === null ||
+        values.shortlist_threshold === undefined
+          ? null
+          : Number(values.shortlist_threshold),
+      screening_criteria: values.screening_criteria.trim() || null,
       screening_weights: values.screening_weights,
       cv_required: values.cv_required,
       ask_age: values.ask_age,
       ask_military_status: values.ask_military_status,
       ask_marital_status: values.ask_marital_status,
-      hard_requirements: buildHard(questionsWithKeys),
-      soft_requirements: buildSoft(questionsWithKeys),
+      hard_requirements: buildHard(),
     };
 
     if (!currentJobId) {
@@ -510,8 +423,9 @@ export function JobWizard({
         require_mic: draft.require_mic,
         require_fullscreen: draft.require_fullscreen,
         require_screen_share: draft.require_screen_share,
-        rules: draft.rules.trim() || null,
-        questions: serializeAssessmentQuestions(draft.questions),
+        rules:
+          kind === 'TECH_TEST' ? techTestRulesFromDraft(draft) : draft.rules.trim() || null,
+        questions: serializeAssessmentQuestions(draft.questions, kind),
       },
     });
   }
@@ -531,18 +445,6 @@ export function JobWizard({
 
     setQuestions(questionsWithKeys);
     rememberQuestions(questionsWithKeys);
-    setHardRows((rows) =>
-      rows.map((row) => ({
-        ...row,
-        fieldKey: resolveFieldKey(row.fieldKey, questionsWithKeys),
-      })),
-    );
-    setSoftRows((rows) =>
-      rows.map((row) => ({
-        ...row,
-        fieldKey: resolveFieldKey(row.fieldKey, questionsWithKeys),
-      })),
-    );
     setDirty(false);
     return saved.id;
   }
@@ -560,6 +462,10 @@ export function JobWizard({
     }
     if (active === 1 && !step2Valid) {
       setFormError('Add at least one application question before continuing');
+      return;
+    }
+    if (active === 2 && !screeningCriteriaReady) {
+      setFormError('Describe who you are looking for before continuing');
       return;
     }
 
@@ -627,6 +533,11 @@ export function JobWizard({
       goToStep(1);
       return;
     }
+    if (!screeningCriteriaReady) {
+      setFormError('Describe who you are looking for before publishing');
+      goToStep(2);
+      return;
+    }
     setPublishing(true);
     setFormError(null);
     try {
@@ -664,7 +575,6 @@ export function JobWizard({
   }
 
   const slideOffset = 24 * stepDirection;
-  const niceToHaveTotal = softRows.reduce((sum, row) => sum + (Number(row.weight) || 0), 0);
 
   return (
     <Stack gap={density.sectionGap}>
@@ -722,13 +632,7 @@ export function JobWizard({
               <EditorSection title="Application questions" description={STEPS[1].description}>
                 <QuestionsSection
                   questions={questions}
-                  onChange={(rows) => {
-                    setQuestions(rows);
-                    if (rows.length === 0) {
-                      setHardRows([]);
-                      setSoftRows([]);
-                    }
-                  }}
+                  onChange={setQuestions}
                   onDirty={markDirty}
                 />
               </EditorSection>
@@ -745,28 +649,12 @@ export function JobWizard({
           ) : null}
 
           {active === 2 ? (
-            questionsReady ? (
-              <EditorSection title="AI filtering" description={STEPS[2].description}>
-                <ScreeningScoreSection
-                  form={form}
-                  niceToHaveTotal={niceToHaveTotal}
-                  onDirty={markDirty}
-                />
-                <ScreeningRulesSection
-                  hardRows={hardRows}
-                  softRows={softRows}
-                  fieldOptions={fieldOptions}
-                  onHardChange={setHardRows}
-                  onSoftChange={setSoftRows}
-                  onDirty={markDirty}
-                />
-              </EditorSection>
-            ) : (
-              <Alert color="ink" title="Add application questions first">
-                Screening rules use the fields from your application form. Go back to step 2 and
-                add at least one question, then return here.
-              </Alert>
-            )
+            <EditorSection title="AI filtering" description={STEPS[2].description}>
+              <Stack gap="xl">
+                <ScreeningCriteriaSection form={form} onDirty={markDirty} />
+                <ScreeningScoreSection form={form} onDirty={markDirty} />
+              </Stack>
+            </EditorSection>
           ) : null}
 
           {active === 3 ? (
@@ -796,8 +684,6 @@ export function JobWizard({
               <JobWizardReview
                 values={form.values}
                 questions={questions}
-                hardRows={hardRows}
-                softRows={softRows}
                 assessment={assessment}
                 techTest={techTest}
                 onEditStep={(step) => goToStep(step)}
@@ -809,8 +695,6 @@ export function JobWizard({
             <JobWizardReview
               values={form.values}
               questions={questions}
-              hardRows={hardRows}
-              softRows={softRows}
               assessment={assessment}
               techTest={techTest}
               onEditStep={(step) => goToStep(step)}
@@ -866,7 +750,8 @@ export function JobWizard({
               disabled={
                 publishing ||
                 (active === 0 && !step1Valid) ||
-                (active === 1 && !step2Valid)
+                (active === 1 && !step2Valid) ||
+                (active === 2 && !screeningCriteriaReady)
               }
               onClick={() => void handleNext()}
             >

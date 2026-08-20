@@ -84,7 +84,8 @@ export type JobEditorBasicsValues = {
   currency: string;
   vacancies: number | string;
   application_deadline: string | null;
-  shortlist_threshold: number | string;
+  shortlist_threshold: number | string | null;
+  screening_criteria: string;
   screening_weights: ScreeningWeights;
   cv_required: boolean;
   ask_age: boolean;
@@ -141,6 +142,8 @@ export type AssessmentQuestionDraft = {
   options: string[];
   correct_index: number | null;
   language: string | null;
+  /** TECH_TEST only; assessments stay written. */
+  answer_mode: 'written' | 'spoken';
 };
 
 export type AssessmentDraft = {

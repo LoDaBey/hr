@@ -404,6 +404,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
                     questions: techtest.review.questions,
                     recording_status: techtest.recording_status,
                     recording: techtest.review.recording,
+                    transcript: techtest.review.transcript,
                     proctoring_flag: techtest.review.proctoring_flag,
                     proctoring_summary: techtest.review.proctoring_summary,
                     preflight_external_display: techtest.review.preflight_external_display,

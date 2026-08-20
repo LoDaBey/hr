@@ -38,6 +38,17 @@ function asRecommendation(value: unknown): Recommendation {
   return RECOMMENDATIONS.includes(upper) ? upper : 'MANUAL_REVIEW';
 }
 
+/** Job threshold wins when set; otherwise company default from Settings. */
+function resolveShortlistCutOff(
+  jobThreshold: number | null | undefined,
+  defaultThreshold: number,
+): { cutOff: number; usedJobThreshold: boolean } {
+  if (jobThreshold != null && Number.isFinite(Number(jobThreshold))) {
+    return { cutOff: Number(jobThreshold), usedJobThreshold: true };
+  }
+  return { cutOff: defaultThreshold, usedJobThreshold: false };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -262,6 +273,12 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
     const rejectableHardFails = rejectableHardFailures(hardFails);
     const rejectHardFail = rejectableHardFails.length > 0;
 
+    const settings = await getAppSettings();
+    const { cutOff: shortlistMinScore, usedJobThreshold } = resolveShortlistCutOff(
+      job.shortlist_threshold,
+      settings.auto_shortlist_min_score,
+    );
+
     let score: number | null = null;
     let decision: Recommendation = rejectHardFail ? 'RECOMMEND_REJECT' : 'MANUAL_REVIEW';
     let confidence: number | null = null;
@@ -280,8 +297,9 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
           min_experience_years: job.min_experience_years,
           education_requirement: job.education_requirement,
           soft_requirements: job.soft_requirements,
+          screening_criteria: job.screening_criteria ?? null,
           screening_weights: job.screening_weights,
-          shortlist_threshold: job.shortlist_threshold,
+          shortlist_threshold: shortlistMinScore,
         },
         candidate_answers: answers,
         cv_parsed: parsed,
@@ -306,16 +324,14 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
           hard_requirement_failures: hardFails,
         };
 
-        // Apply shortlist_threshold as the auto-advance cut-off.
-        // The threshold is the minimum score to receive a SHORTLIST recommendation.
-        // If the AI already rejected, we leave that intact.
-        const threshold = Number.isFinite(Number(job.shortlist_threshold))
-          ? Number(job.shortlist_threshold)
-          : null;
-        if (threshold !== null && score !== null && decision !== 'RECOMMEND_REJECT') {
-          if (score >= threshold && decision === 'MANUAL_REVIEW') {
+        // Apply the resolved shortlist cut-off as the auto-advance recommendation gate.
+        if (score !== null && decision !== 'RECOMMEND_REJECT') {
+          if (score >= shortlistMinScore && decision === 'MANUAL_REVIEW') {
             decision = 'SHORTLIST';
-          } else if (score < threshold && (decision === 'SHORTLIST' || decision === 'STRONG_SHORTLIST')) {
+          } else if (
+            score < shortlistMinScore &&
+            (decision === 'SHORTLIST' || decision === 'STRONG_SHORTLIST')
+          ) {
             decision = 'MANUAL_REVIEW';
           }
         }
@@ -363,16 +379,12 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       ],
     );
 
-    const settings = await getAppSettings();
     const candidate = await one<{ email: string; full_name: string }>(
       `SELECT email, full_name FROM HRSYSTEM_candidates WHERE id = $1`,
       [application.candidate_id],
     );
     if (!candidate) return;
 
-    const shortlistMinScore = Number.isFinite(Number(job.shortlist_threshold))
-      ? Number(job.shortlist_threshold)
-      : settings.auto_shortlist_min_score;
     const minConfidence = Number(settings.auto_shortlist_min_confidence);
 
     type AutoOutcome = 'review' | 'reject' | 'shortlist';
@@ -398,7 +410,9 @@ export async function runCvParseAndScreening(applicationId: string): Promise<voi
       !rejectHardFail
     ) {
       outcome = 'shortlist';
-      reason = `Score ${score} met shortlist threshold (${shortlistMinScore}) with confidence ${confidence}`;
+      reason = usedJobThreshold
+        ? `Score ${score} met this job's shortlist threshold (${shortlistMinScore}) with confidence ${confidence}`
+        : `Score ${score} met the default shortlist threshold (${shortlistMinScore}) with confidence ${confidence}`;
     }
 
     const toStage: Stage =

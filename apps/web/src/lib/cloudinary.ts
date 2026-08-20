@@ -100,3 +100,11 @@ export function signedDeliveryUrl(
   const url = `https://api.cloudinary.com/v1_1/${cloudName}/${type}/download?${query.toString()}`;
   return { url, expires_in: DELIVERY_TTL_SECONDS };
 }
+
+/**
+ * Audio-only derivation of a stored interview recording (mp3).
+ * Prefer this over the full video when sending to transcription / recording.grade.
+ */
+export function recordingAudioUrl(publicId: string): { url: string; expires_in: number } {
+  return signedDeliveryUrl(publicId, 'video', 'mp3');
+}
