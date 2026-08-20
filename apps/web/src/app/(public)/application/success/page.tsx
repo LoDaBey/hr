@@ -1,4 +1,5 @@
 import { Box, Center } from '@mantine/core';
+import { CandidateBrandBar } from '@/components/CandidateBrandBar';
 import { palette } from '@/theme';
 import { SuccessMessage } from './components/SuccessMessage';
 
@@ -13,15 +14,7 @@ export default function ApplicationSuccessPage() {
         flexDirection: 'column',
       }}
     >
-      <Box
-        style={{
-          height: 4,
-          background: palette.accent,
-          width: '100%',
-          flexShrink: 0,
-        }}
-        aria-hidden
-      />
+      <CandidateBrandBar />
       <Center style={{ flex: 1, padding: 24 }}>
         <SuccessMessage />
       </Center>

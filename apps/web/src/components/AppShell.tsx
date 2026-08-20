@@ -27,6 +27,7 @@ import {
 } from '@tabler/icons-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SidebarResizeHandle } from '@/components/app-shell/SidebarResizeHandle';
+import { BrandLogo } from '@/components/BrandLogo';
 import { PageTransition } from '@/components/PageTransition';
 import { SignOutButton } from '@/components/SignOutButton';
 import { ROLE, labelOf } from '@/lib/labels';
@@ -297,43 +298,56 @@ export function AppShell({
             }}
           >
             <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
-              <Group justify={railCollapsed ? 'center' : 'flex-end'} wrap="nowrap" gap="xs" px={railCollapsed ? 0 : 4}>
-                {railCollapsed && !isMobile ? (
-                  <Tooltip label="Expand sidebar" position="right">
-                    <ActionIcon
-                      className="cursor-pointer rounded-lg"
-                      aria-label="Expand sidebar"
-                      variant="subtle"
-                      onClick={() => setCollapsed(false)}
-                      style={{ color: palette.surface }}
-                    >
-                      <IconLayoutSidebarLeftCollapse
-                        size={18}
-                        aria-hidden
-                        style={{ transform: 'scaleX(-1)' }}
-                      />
-                    </ActionIcon>
-                  </Tooltip>
-                ) : null}
-                {!isMobile && !railCollapsed ? (
-                  <Tooltip label="Collapse sidebar" position="right">
-                    <motion.div
-                      whileHover={{ scale: density.motion.hoverScale }}
-                      whileTap={{ scale: density.motion.tapScale }}
-                    >
+              {railCollapsed ? (
+                <Stack gap="xs" align="center">
+                  <BrandLogo height={28} markOnly />
+                  {!isMobile ? (
+                    <Tooltip label="Expand sidebar" position="right">
                       <ActionIcon
                         className="cursor-pointer rounded-lg"
-                        aria-label="Collapse sidebar"
+                        aria-label="Expand sidebar"
                         variant="subtle"
-                        onClick={() => setCollapsed(true)}
-                        style={{ color: `${palette.surface}99` }}
+                        onClick={() => setCollapsed(false)}
+                        style={{ color: palette.surface }}
                       >
-                        <IconLayoutSidebarLeftCollapse size={18} aria-hidden />
+                        <IconLayoutSidebarLeftCollapse
+                          size={18}
+                          aria-hidden
+                          style={{ transform: 'scaleX(-1)' }}
+                        />
                       </ActionIcon>
-                    </motion.div>
-                  </Tooltip>
-                ) : null}
-              </Group>
+                    </Tooltip>
+                  ) : null}
+                </Stack>
+              ) : (
+                <Group
+                  justify="space-between"
+                  wrap="nowrap"
+                  gap="xs"
+                  px={4}
+                  align="center"
+                >
+                  <BrandLogo height={28} />
+                  {!isMobile ? (
+                    <Tooltip label="Collapse sidebar" position="right">
+                      <motion.div
+                        whileHover={{ scale: density.motion.hoverScale }}
+                        whileTap={{ scale: density.motion.tapScale }}
+                      >
+                        <ActionIcon
+                          className="cursor-pointer rounded-lg"
+                          aria-label="Collapse sidebar"
+                          variant="subtle"
+                          onClick={() => setCollapsed(true)}
+                          style={{ color: `${palette.surface}99` }}
+                        >
+                          <IconLayoutSidebarLeftCollapse size={18} aria-hidden />
+                        </ActionIcon>
+                      </motion.div>
+                    </Tooltip>
+                  ) : null}
+                </Group>
+              )}
 
               <NavSection
                 label="Recruit"
