@@ -1,4 +1,4 @@
-import { SimpleGrid, Stack, Text } from '@mantine/core';
+import { Group, Stack, Text } from '@mantine/core';
 import { density, palette } from '@/theme';
 import type { PublicJobDetail } from '@/types/api';
 import { JobHero } from './JobHero';
@@ -7,10 +7,16 @@ import { JobSkills } from './JobSkills';
 
 export function JobDetailView({ job }: { job: PublicJobDetail }) {
   return (
-    <Stack gap={48}>
+    <Stack gap="xl">
       <JobHero job={job} />
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing={40} style={{ alignItems: 'start' }}>
-        <Stack gap="xl">
+      <Group
+        align="flex-start"
+        gap="xl"
+        wrap="wrap"
+        preventGrowOverflow={false}
+        style={{ alignItems: 'flex-start' }}
+      >
+        <Stack gap="xl" style={{ flex: '3 1 420px', minWidth: 0, maxWidth: '100%' }}>
           {job.description ? (
             <div>
               <Text fw={600} mb="sm" size="lg" style={{ color: palette.ink }}>
@@ -30,8 +36,10 @@ export function JobDetailView({ job }: { job: PublicJobDetail }) {
           ) : null}
           <JobSkills required={job.required_skills} preferred={job.preferred_skills} />
         </Stack>
-        <JobMetaCard job={job} />
-      </SimpleGrid>
+        <div style={{ flex: '2 1 280px', minWidth: 260, maxWidth: '100%' }}>
+          <JobMetaCard job={job} />
+        </div>
+      </Group>
     </Stack>
   );
 }

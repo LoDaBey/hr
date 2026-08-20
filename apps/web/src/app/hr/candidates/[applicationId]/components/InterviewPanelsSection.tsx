@@ -103,6 +103,7 @@ export function InterviewPanelsSection({
             <ScheduleForm
               applicationId={applicationId}
               roundNo={roundNo}
+              existing={roundInterview?.status === 'SCHEDULED' ? roundInterview : null}
               onScheduled={onMutate}
             />
           </Accordion.Panel>

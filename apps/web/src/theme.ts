@@ -57,7 +57,7 @@ export const density = {
   shellResizeHandleWidth: 4,
   shellLoginCardWidth: 420,
   contentMaxWidth: 720,
-  publicContentMaxWidth: 1120,
+  publicContentMaxWidth: 1400,
   pagePadding: 'md' as const,
   sectionGap: 'md' as const,
   stickyBarClearance: 80,

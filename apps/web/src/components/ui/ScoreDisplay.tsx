@@ -12,7 +12,11 @@ export function ScoreDisplay({
   confidence,
   recommendation,
   recommendationTone = 'accent',
+  size = 'md',
 }: ScoreDisplayProps) {
+  const scoreSize = size === 'xxl' ? '3.25rem' : '2rem';
+  const maxSize = size === 'xxl' ? 'lg' : 'sm';
+
   return (
     <Stack gap="xs">
       <Group gap="md" align="flex-end" wrap="wrap">
@@ -22,11 +26,11 @@ export function ScoreDisplay({
               {label}
             </Text>
           ) : null}
-          <Group gap={6} align="baseline">
-            <Text fw={700} style={{ fontSize: '2rem', lineHeight: 1, letterSpacing: '-0.02em' }}>
+          <Group gap={8} align="baseline">
+            <Text fw={700} style={{ fontSize: scoreSize, lineHeight: 1, letterSpacing: '-0.03em' }}>
               {score ?? '—'}
             </Text>
-            <Text size="sm" c="dimmed">
+            <Text size={maxSize} c="dimmed">
               / {max}
             </Text>
           </Group>
@@ -38,16 +42,16 @@ export function ScoreDisplay({
         ) : null}
       </Group>
       {typeof confidence === 'number' ? (
-        <Stack gap={4} maw={220}>
+        <Stack gap={4} maw={280}>
           <Group justify="space-between">
-            <Text size="xs" c="dimmed">
+            <Text size="sm" c="dimmed">
               Confidence
             </Text>
-            <Text size="xs" fw={600}>
+            <Text size="sm" fw={600}>
               {confidence.toFixed(2)}
             </Text>
           </Group>
-          <Progress value={Math.min(100, Math.max(0, confidence * 100))} color="accent" size="sm" radius="sm" />
+          <Progress value={Math.min(100, Math.max(0, confidence * 100))} color="accent" size="md" radius="sm" />
         </Stack>
       ) : null}
     </Stack>

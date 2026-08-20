@@ -22,6 +22,7 @@ import { DASHBOARD_STAGE_COLS } from '@/lib/pipeline-rail';
 import { density, palette } from '@/theme';
 import type { MetricCardProps } from '@/types/ui';
 import { motion } from 'framer-motion';
+import { DashboardCandidatesTable } from './DashboardCandidatesTable';
 
 function candidatesHref(jobId: string, stage: string | null): string {
   const params = new URLSearchParams({ job_id: jobId });
@@ -126,6 +127,8 @@ export function DashboardView() {
           ))}
         </SimpleGrid>
       </MotionStagger>
+
+      <DashboardCandidatesTable />
 
       {by_job.length === 0 ? (
         <EmptyState

@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import type { Extension } from '@codemirror/state';
-import { Alert, Badge, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Group, Loader, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { MotionButton } from '@/components/MotionButton';
 import { ScoreDisplay } from '@/components/ui/ScoreDisplay';
 import { api } from '@/lib/api';
@@ -251,72 +251,76 @@ export function AssessmentReview({
         onGraded={onGraded}
       />
 
-      {review.questions.map((q, index) => {
-        const ev = q.evaluation;
-        const text = answerDisplay(q.answer, q.type);
-        const isCode = q.type === 'CODING' || q.type === 'SQL';
+      <SimpleGrid cols={{ base: 1, md: 2, lg: 3 }} spacing="md">
+        {review.questions.map((q, index) => {
+          const ev = q.evaluation;
+          const text = answerDisplay(q.answer, q.type);
+          const isCode = q.type === 'CODING' || q.type === 'SQL';
 
-        return (
-          <Paper
-            key={q.id}
-            withBorder
-            p="md"
-            radius={density.defaultRadius}
-            style={{ borderColor: `${palette.ink}14` }}
-          >
-            <Stack gap="sm">
-              <Title order={4}>
-                Question {index + 1}
-                <Text span size="sm" c="dimmed" fw={400}>
-                  {' '}
-                  · {q.type} · {q.max_score} pts
-                </Text>
-              </Title>
-              <Text style={{ whiteSpace: 'pre-wrap' }}>{q.prompt}</Text>
-
-              <Text size="sm" fw={600}>
-                Candidate answer
-              </Text>
-              {isCode ? (
-                <ReadOnlyCode value={text === '—' ? '' : text} language={q.language} />
-              ) : (
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }} c={text === '—' ? 'dimmed' : undefined}>
-                  {text}
-                </Text>
-              )}
-
-              {ev ? (
-                <Stack gap={4}>
-                  <Text size="sm" fw={600}>
-                    Evaluation: {ev.score ?? 0} / {ev.max_score ?? q.max_score}
-                    {ev.confidence != null ? ` · confidence ${ev.confidence}` : ''}
+          return (
+            <Paper
+              key={q.id}
+              withBorder
+              p="md"
+              radius={density.defaultRadius}
+              style={{ borderColor: palette.border, height: '100%' }}
+            >
+              <Stack gap="sm">
+                <Title order={5} style={{ fontFamily: 'inherit' }}>
+                  Question {index + 1}
+                  <Text span size="sm" c="dimmed" fw={400}>
+                    {' '}
+                    · {q.type} · {q.max_score} pts
                   </Text>
-                  {ev.feedback ? <Text size="sm">{ev.feedback}</Text> : null}
-                  {asList(ev.correct_concepts).length > 0 ? (
-                    <Text size="sm" c="dimmed">
-                      Covered: {asList(ev.correct_concepts).join('; ')}
-                    </Text>
-                  ) : null}
-                  {asList(ev.missing_concepts).length > 0 ? (
-                    <Text size="sm" c="dimmed">
-                      Missed: {asList(ev.missing_concepts).join('; ')}
-                    </Text>
-                  ) : null}
-                  {asList(ev.technical_errors).length > 0 ? (
-                    <Text size="sm" c="dimmed">
-                      Errors: {asList(ev.technical_errors).join('; ')}
-                    </Text>
-                  ) : null}
-                </Stack>
-              ) : review.has_overall_evaluation ? (
-                <Text size="sm" c="dimmed">
-                  No evaluation yet.
+                </Title>
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                  {q.prompt}
                 </Text>
-              ) : null}
-            </Stack>
-          </Paper>
-        );
-      })}
+
+                <Text size="sm" fw={600}>
+                  Candidate answer
+                </Text>
+                {isCode ? (
+                  <ReadOnlyCode value={text === '—' ? '' : text} language={q.language} />
+                ) : (
+                  <Text size="sm" style={{ whiteSpace: 'pre-wrap' }} c={text === '—' ? 'dimmed' : undefined}>
+                    {text}
+                  </Text>
+                )}
+
+                {ev ? (
+                  <Stack gap={4}>
+                    <Text size="sm" fw={600}>
+                      Evaluation: {ev.score ?? 0} / {ev.max_score ?? q.max_score}
+                      {ev.confidence != null ? ` · confidence ${ev.confidence}` : ''}
+                    </Text>
+                    {ev.feedback ? <Text size="sm">{ev.feedback}</Text> : null}
+                    {asList(ev.correct_concepts).length > 0 ? (
+                      <Text size="sm" c="dimmed">
+                        Covered: {asList(ev.correct_concepts).join('; ')}
+                      </Text>
+                    ) : null}
+                    {asList(ev.missing_concepts).length > 0 ? (
+                      <Text size="sm" c="dimmed">
+                        Missed: {asList(ev.missing_concepts).join('; ')}
+                      </Text>
+                    ) : null}
+                    {asList(ev.technical_errors).length > 0 ? (
+                      <Text size="sm" c="dimmed">
+                        Errors: {asList(ev.technical_errors).join('; ')}
+                      </Text>
+                    ) : null}
+                  </Stack>
+                ) : review.has_overall_evaluation ? (
+                  <Text size="sm" c="dimmed">
+                    No evaluation yet.
+                  </Text>
+                ) : null}
+              </Stack>
+            </Paper>
+          );
+        })}
+      </SimpleGrid>
     </Stack>
   );
 }

@@ -60,6 +60,8 @@ export type ScoreDisplayProps = {
   confidence?: number | null;
   recommendation?: string | null;
   recommendationTone?: StatusTone;
+  /** Visual size — screening uses xxl */
+  size?: 'md' | 'xxl';
 };
 
 export type StatusBadgeProps = {

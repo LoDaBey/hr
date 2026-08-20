@@ -34,17 +34,21 @@ function BulletList({
 
   return (
     <div>
-      <Text size="sm" fw={700} mb={6} style={{ color: labelColor }}>
+      <Text size="md" fw={700} mb={8} style={{ color: labelColor }}>
         {label}
       </Text>
       {items.length === 0 ? (
-        <Text size="sm" c="dimmed">
+        <Text size="lg" c="dimmed">
           —
         </Text>
       ) : (
-        <List size="sm" spacing={4}>
+        <List size="lg" spacing="sm">
           {items.map((item) => (
-            <List.Item key={item}>{item}</List.Item>
+            <List.Item key={item}>
+              <Text size="lg" style={{ lineHeight: 1.5 }}>
+                {item}
+              </Text>
+            </List.Item>
           ))}
         </List>
       )}
@@ -81,7 +85,7 @@ export function ScreeningResultSection({
   );
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       <HardRequirementFailuresPanel failures={hardFailures} />
 
       <Group align="flex-end" gap="lg" wrap="wrap">
@@ -89,6 +93,7 @@ export function ScreeningResultSection({
           score={screening.score}
           max={100}
           label="Screening score"
+          size="xxl"
           confidence={screening.confidence}
           recommendation={recommendationLabel}
           recommendationTone={
@@ -102,20 +107,22 @@ export function ScreeningResultSection({
           }
         />
         {screening.hr_decision ? (
-          <Badge color="accent" variant="outline" size="md">
+          <Badge color="accent" variant="outline" size="lg">
             HR override: {labelOf(HR_DECISION, screening.hr_decision)}
           </Badge>
         ) : null}
       </Group>
 
-      <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
         <BulletList label="Missing" items={missing} accentColor="warning" />
         <BulletList label="Strengths" items={strengths} />
         <BulletList label="Weaknesses" items={weaknesses} />
       </SimpleGrid>
 
       {screening.reasoning_summary ? (
-        <Text style={{ lineHeight: 1.65, color: palette.ink }}>{screening.reasoning_summary}</Text>
+        <Text size="lg" style={{ lineHeight: 1.65, color: palette.ink }}>
+          {screening.reasoning_summary}
+        </Text>
       ) : null}
     </Stack>
   );
