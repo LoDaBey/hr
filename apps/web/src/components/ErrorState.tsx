@@ -1,6 +1,7 @@
 'use client';
 
-import { Alert, Button, Stack } from '@mantine/core';
+import { Alert, Stack } from '@mantine/core';
+import { MotionButton } from '@/components/MotionButton';
 
 export function ErrorState({
   title = 'Something went wrong',
@@ -12,17 +13,20 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <Alert color="red" title={title}>
+    <Alert color="danger" title={title} radius="md">
       <Stack gap="sm">
         {message}
         {onRetry ? (
-          <Button
+          <MotionButton
             className="cursor-pointer rounded-lg"
             aria-label="Retry"
+            size="xs"
+            variant="light"
+            color="danger"
             onClick={onRetry}
           >
             Retry
-          </Button>
+          </MotionButton>
         ) : null}
       </Stack>
     </Alert>

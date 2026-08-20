@@ -6,9 +6,14 @@ import {
   AssessmentReview,
   type AssessmentReviewData,
 } from '@/components/hr/AssessmentReview';
+import {
+  ProctoringBadge,
+  RecordingStatusBadge,
+} from '@/components/hr/status/DomainStatusBadges';
 import { datetime } from '@/lib/format';
 import { density, palette } from '@/theme';
 import type { ProctoringSeverity, RecordingStatus } from '@/types/domain';
+import type { ProctoringFlag } from '@/types/ui';
 
 export type TechTestProctorRow = {
   id: string;
@@ -34,12 +39,6 @@ export type TechTestReviewData = AssessmentReviewData & {
   events: TechTestProctorRow[];
   session_started_at: string | null;
 };
-
-function flagColor(flag: TechTestReviewData['proctoring_flag']): string {
-  if (flag === 'REVIEW_RECORDING') return 'danger';
-  if (flag === 'MINOR_FLAGS') return 'warning';
-  return 'success';
-}
 
 function offsetSeconds(
   sessionStartedAt: string | null,
@@ -96,14 +95,20 @@ export function TechTestReview({
         withBorder
         p="md"
         radius={density.defaultRadius}
-        style={{ borderColor: `${palette.ink}14` }}
+        style={{ borderColor: palette.border }}
       >
         <Stack gap="sm">
           <Group justify="space-between" align="center">
-            <Title order={4}>Recording</Title>
-            <Badge color={recordingReady ? 'success' : 'warning'} variant="light">
-              {recordingReady ? 'Ready' : review.recording_status === 'UPLOAD_PENDING' ? 'Upload pending' : 'Recording missing'}
-            </Badge>
+            <Title order={4} style={{ fontFamily: 'inherit' }}>
+              Recording
+            </Title>
+            {review.recording_status ? (
+              <RecordingStatusBadge status={review.recording_status} />
+            ) : (
+              <Badge color="warning" variant="light">
+                Recording missing
+              </Badge>
+            )}
           </Group>
 
           {recordingReady && review.recording?.signed_url ? (
@@ -143,14 +148,14 @@ export function TechTestReview({
         withBorder
         p="md"
         radius={density.defaultRadius}
-        style={{ borderColor: `${palette.ink}14` }}
+        style={{ borderColor: palette.border }}
       >
         <Stack gap="sm">
           <Group justify="space-between">
-            <Title order={4}>Proctoring</Title>
-            <Badge color={flagColor(flagLabel)} variant="light">
-              {flagLabel.replaceAll('_', ' ')}
-            </Badge>
+            <Title order={4} style={{ fontFamily: 'inherit' }}>
+              Proctoring
+            </Title>
+            <ProctoringBadge flag={(flagLabel as ProctoringFlag) ?? 'CLEAN'} />
           </Group>
           <Text size="sm">{eventSummary}</Text>
           {review.preflight_external_display ? (

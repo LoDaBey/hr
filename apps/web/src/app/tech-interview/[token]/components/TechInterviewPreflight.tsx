@@ -61,10 +61,6 @@ export function TechInterviewPreflight({
   }, []);
   const needsMedia = requirements.camera || requirements.mic;
 
-  useEffect(() => {
-    checkExternalDisplay();
-  }, [checkExternalDisplay]);
-
   const [mediaState, setMediaState] = useState<MediaState>(() =>
     needsMedia ? 'requesting' : 'ready',
   );
@@ -210,7 +206,11 @@ export function TechInterviewPreflight({
     stopTracks,
   ]);
 
-  const devicesLive = streamMeetsRequirements(streamRef.current, requirements);
+  // Derive from trackStatus state (kept in sync via refreshTrackStatus), not streamRef —
+  // reading refs during render is invalid in React.
+  const devicesLive =
+    (!requirements.camera || trackStatus.camera === 'on') &&
+    (!requirements.mic || trackStatus.mic === 'on');
   const screenShareReady = !needsScreenShare || screenShare.ready;
   const canStart =
     acceptedRules &&
@@ -238,13 +238,13 @@ export function TechInterviewPreflight({
   return (
     <Stack gap="lg" maw={560} mx="auto" py="xl" px="md">
       <div>
-        <Text size="sm" c="dimmed">
+        <Text size="xs" fw={600} tt="uppercase" style={{ color: palette.muted, letterSpacing: '0.06em' }}>
           {data.job_title}
         </Text>
-        <Title order={1} style={{ color: palette.ink, letterSpacing: density.titleLetterSpacing }}>
+        <Title order={1} mt={6} style={{ color: palette.ink, letterSpacing: density.titleLetterSpacing, fontSize: '1.5rem' }}>
           {data.assessment.title}
         </Title>
-        <Text mt="xs">
+        <Text mt="sm" size="sm">
           Hi {data.candidate_name}. This session is recorded
           {requirements.camera || requirements.mic
             ? ' and needs a working camera and microphone'
@@ -257,7 +257,7 @@ export function TechInterviewPreflight({
         withBorder
         p="md"
         radius={density.defaultRadius}
-        style={{ borderColor: `${palette.ink}14`, background: palette.paper }}
+        style={{ borderColor: palette.border, background: palette.surface }}
       >
         <Stack gap="sm">
           <Text size="sm">
@@ -282,7 +282,7 @@ export function TechInterviewPreflight({
           withBorder
           p="md"
           radius={density.defaultRadius}
-          style={{ borderColor: `${palette.ink}14` }}
+          style={{ borderColor: palette.border, background: palette.surface }}
         >
           <Text fw={600} mb="xs">
             Rules
@@ -300,7 +300,7 @@ export function TechInterviewPreflight({
           withBorder
           p="md"
           radius={density.defaultRadius}
-          style={{ borderColor: `${palette.ink}14`, overflow: 'hidden' }}
+          style={{ borderColor: palette.border, overflow: 'hidden', background: palette.surface }}
         >
           <Stack gap="sm">
             <Text fw={600}>Check your framing</Text>
@@ -437,7 +437,7 @@ export function TechInterviewPreflight({
         fullWidth
         onClick={() => void handleStart()}
       >
-        Start
+        Start session
       </MotionButton>
     </Stack>
   );

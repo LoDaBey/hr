@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Group, Modal, Stack, Text } from '@mantine/core';
+import { ActionIcon, Group, Modal, Stack, Text, Tooltip } from '@mantine/core';
+import { IconTrash } from '@tabler/icons-react';
 import { MotionButton } from '@/components/MotionButton';
 import { useDeleteHrCandidate } from '@/hooks/useHrCandidates';
 import { ApiError } from '@/lib/api';
 import { toastError, toastSuccess } from '@/lib/toast';
+import { density } from '@/theme';
+import { motion } from 'framer-motion';
 
 export function CandidateRowActions({
   applicationId,
@@ -41,16 +44,22 @@ export function CandidateRowActions({
 
   return (
     <>
-      <MotionButton
-        className="cursor-pointer rounded-lg"
-        aria-label={`Delete candidate ${fullName}`}
-        size="compact-sm"
-        color="danger"
-        variant="light"
-        onClick={() => setOpened(true)}
-      >
-        Delete
-      </MotionButton>
+      <Tooltip label="Delete candidate">
+        <motion.div
+          whileHover={{ scale: density.motion.hoverScale }}
+          whileTap={{ scale: density.motion.tapScale }}
+        >
+          <ActionIcon
+            className="cursor-pointer rounded-lg"
+            aria-label={`Delete candidate ${fullName}`}
+            color="danger"
+            variant="subtle"
+            onClick={() => setOpened(true)}
+          >
+            <IconTrash size={16} aria-hidden />
+          </ActionIcon>
+        </motion.div>
+      </Tooltip>
 
       <Modal
         opened={opened}
@@ -81,7 +90,7 @@ export function CandidateRowActions({
               loading={deleting}
               onClick={() => void handleDelete()}
             >
-              Delete
+              Delete candidate
             </MotionButton>
           </Group>
         </Stack>

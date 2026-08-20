@@ -20,10 +20,10 @@ export function ApplyHeader({ job }: { job: PublicJobDetail }) {
         style={{
           color: palette.ink,
           letterSpacing: density.titleLetterSpacing,
-          fontSize: 'clamp(1.75rem, 3vw, 2.5rem)',
+          fontSize: 'clamp(1.5rem, 3vw, 1.75rem)',
         }}
       >
-        {job.title}
+        Apply · {job.title}
       </Title>
       <Text c="dimmed" size="sm">
         {contextLine || 'Complete the form below to apply. Fields marked required must be filled in.'}

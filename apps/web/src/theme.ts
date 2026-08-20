@@ -3,7 +3,8 @@
  *
  * Palette:
  *   ink     #1A2332  — text, chrome
- *   paper   #F4F6F8  — surfaces (not pure white)
+ *   paper   #F4F6F8  — canvas (page background)
+ *   surface #FFFFFF  — raised cards on paper
  *   accent  #0F6E72  — primary action + active nav (deep teal)
  *   danger  #B42318  — rejected / failed / destructive
  *   success #1F7A4D  — hired / shortlist / sent
@@ -25,10 +26,19 @@ import { createTheme, type MantineColorsTuple, type MantineThemeOverride } from 
 export const palette = {
   ink: '#1A2332',
   paper: '#F4F6F8',
+  surface: '#FFFFFF',
   accent: '#0F6E72',
   danger: '#B42318',
   success: '#1F7A4D',
   warning: '#A15C07',
+  muted: '#5c6778',
+  border: 'rgba(26, 35, 50, 0.10)',
+  borderStrong: 'rgba(26, 35, 50, 0.16)',
+} as const;
+
+export const shadows = {
+  sm: '0 1px 2px rgba(26, 35, 50, 0.04), 0 1px 3px rgba(26, 35, 50, 0.06)',
+  md: '0 2px 6px rgba(26, 35, 50, 0.06), 0 4px 12px rgba(26, 35, 50, 0.06)',
 } as const;
 
 export const density = {
@@ -36,6 +46,9 @@ export const density = {
   bodyFontSize: 14,
   bodyLineHeight: 1.55,
   titleLetterSpacing: '-0.02em',
+  controlHeight: 36,
+  controlHeightSm: 30,
+  tableRowHeight: 48,
   shellNavbarWidth: 240,
   shellNavbarCollapsedWidth: 72,
   shellNavbarMinWidth: 200,
@@ -45,7 +58,8 @@ export const density = {
   shellLoginCardWidth: 420,
   contentMaxWidth: 720,
   publicContentMaxWidth: 1120,
-  sectionGap: 'lg' as const,
+  pagePadding: 'md' as const,
+  sectionGap: 'md' as const,
   stickyBarClearance: 80,
   motion: {
     durationFast: 0.15,
@@ -150,12 +164,12 @@ export function createAppTheme(fonts: {
       fontFamily: fonts.heading,
       fontWeight: '600',
       sizes: {
-        h1: { fontSize: '2rem', lineHeight: '1.2', fontWeight: '600' },
-        h2: { fontSize: '1.5rem', lineHeight: '1.25', fontWeight: '600' },
-        h3: { fontSize: '1.25rem', lineHeight: '1.3', fontWeight: '600' },
-        h4: { fontSize: '1.1rem', lineHeight: '1.35', fontWeight: '600' },
-        h5: { fontSize: '1rem', lineHeight: '1.4', fontWeight: '600' },
-        h6: { fontSize: '0.875rem', lineHeight: '1.45', fontWeight: '600' },
+        h1: { fontSize: '1.75rem', lineHeight: '1.25', fontWeight: '600' },
+        h2: { fontSize: '1.375rem', lineHeight: '1.3', fontWeight: '600' },
+        h3: { fontSize: '1.125rem', lineHeight: '1.35', fontWeight: '600' },
+        h4: { fontSize: '1rem', lineHeight: '1.4', fontWeight: '600' },
+        h5: { fontSize: '0.9375rem', lineHeight: '1.4', fontWeight: '600' },
+        h6: { fontSize: '0.8125rem', lineHeight: '1.45', fontWeight: '600' },
       },
     },
     lineHeights: {
@@ -173,12 +187,29 @@ export function createAppTheme(fonts: {
       ink: inkScale,
     },
     black: palette.ink,
-    white: palette.paper,
+    white: palette.surface,
     primaryShade: 5,
     cursorType: 'pointer',
     focusRing: 'auto',
+    shadows: {
+      xs: shadows.sm,
+      sm: shadows.sm,
+      md: shadows.md,
+      lg: shadows.md,
+      xl: shadows.md,
+    },
     components: {
       Button: {
+        defaultProps: {
+          radius: density.defaultRadius,
+        },
+        styles: {
+          root: {
+            fontWeight: 500,
+          },
+        },
+      },
+      ActionIcon: {
         defaultProps: {
           radius: density.defaultRadius,
         },
@@ -186,7 +217,129 @@ export function createAppTheme(fonts: {
       Paper: {
         defaultProps: {
           radius: density.defaultRadius,
-          bg: palette.paper,
+          bg: palette.surface,
+          withBorder: true,
+        },
+        styles: {
+          root: {
+            borderColor: palette.border,
+          },
+        },
+      },
+      Card: {
+        defaultProps: {
+          radius: density.defaultRadius,
+          bg: palette.surface,
+          withBorder: true,
+          padding: 'md',
+        },
+        styles: {
+          root: {
+            borderColor: palette.border,
+          },
+        },
+      },
+      TextInput: {
+        defaultProps: {
+          radius: density.defaultRadius,
+        },
+        styles: {
+          input: {
+            minHeight: density.controlHeight,
+          },
+        },
+      },
+      Textarea: {
+        defaultProps: {
+          radius: density.defaultRadius,
+        },
+      },
+      Select: {
+        defaultProps: {
+          radius: density.defaultRadius,
+        },
+        styles: {
+          input: {
+            minHeight: density.controlHeight,
+          },
+        },
+      },
+      NumberInput: {
+        defaultProps: {
+          radius: density.defaultRadius,
+        },
+        styles: {
+          input: {
+            minHeight: density.controlHeight,
+          },
+        },
+      },
+      PasswordInput: {
+        defaultProps: {
+          radius: density.defaultRadius,
+        },
+        styles: {
+          input: {
+            minHeight: density.controlHeight,
+          },
+        },
+      },
+      Table: {
+        defaultProps: {
+          horizontalSpacing: 'md',
+          verticalSpacing: 'sm',
+          highlightOnHover: true,
+        },
+        styles: {
+          th: {
+            fontSize: '11px',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+            color: palette.muted,
+            backgroundColor: palette.paper,
+          },
+          td: {
+            fontSize: `${density.bodyFontSize}px`,
+          },
+        },
+      },
+      Badge: {
+        defaultProps: {
+          radius: 'sm',
+          variant: 'light',
+        },
+        styles: {
+          root: {
+            fontWeight: 600,
+            textTransform: 'none',
+          },
+        },
+      },
+      Tabs: {
+        defaultProps: {
+          color: 'accent',
+        },
+        styles: {
+          tab: {
+            fontWeight: 500,
+            fontSize: '13px',
+          },
+          list: {
+            borderColor: palette.border,
+          },
+        },
+      },
+      Modal: {
+        defaultProps: {
+          radius: density.defaultRadius,
+          centered: true,
+          overlayProps: { backgroundOpacity: 0.45, blur: 2 },
+        },
+      },
+      Alert: {
+        defaultProps: {
+          radius: density.defaultRadius,
         },
       },
       NavLink: {
@@ -194,10 +347,22 @@ export function createAppTheme(fonts: {
           color: 'accent',
         },
       },
+      Tooltip: {
+        defaultProps: {
+          withArrow: true,
+          openDelay: 200,
+        },
+      },
+      Skeleton: {
+        defaultProps: {
+          radius: density.defaultRadius,
+        },
+      },
     },
     other: {
       palette,
       density,
+      shadows,
     },
   });
 }

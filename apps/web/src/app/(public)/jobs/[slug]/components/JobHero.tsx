@@ -17,8 +17,8 @@ export function JobHero({ job }: { job: PublicJobDetail }) {
       <Title
         order={1}
         style={{
-          fontSize: 'clamp(2.25rem, 4vw, 3.25rem)',
-          lineHeight: 1.1,
+          fontSize: 'clamp(1.75rem, 3.5vw, 2.5rem)',
+          lineHeight: 1.15,
           letterSpacing: density.titleLetterSpacing,
           color: palette.ink,
         }}

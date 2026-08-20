@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert, Badge, Group, List, SimpleGrid, Stack, Text } from '@mantine/core';
+import { ScoreDisplay } from '@/components/ui/ScoreDisplay';
 import { stringList } from '@/lib/display';
 import { HR_DECISION, RECOMMENDATION, labelOf } from '@/lib/labels';
 import { palette } from '@/theme';
@@ -84,37 +85,28 @@ export function ScreeningResultSection({
       <HardRequirementFailuresPanel failures={hardFailures} />
 
       <Group align="flex-end" gap="lg" wrap="wrap">
-        <Group gap="sm" align="flex-end">
-          <Text
-            fw={700}
-            style={{
-              fontSize: '3.5rem',
-              lineHeight: 0.9,
-              color: palette.ink,
-              letterSpacing: '-0.03em',
-            }}
-          >
-            {screening.score ?? '—'}
-          </Text>
-          <Text size="xl" c="dimmed" pb={6}>
-            / 100
-          </Text>
-          <Badge color="accent" variant="light" size="xl" pb={4}>
-            {recommendationLabel}
-          </Badge>
-        </Group>
+        <ScoreDisplay
+          score={screening.score}
+          max={100}
+          label="Screening score"
+          confidence={screening.confidence}
+          recommendation={recommendationLabel}
+          recommendationTone={
+            screening.recommendation === 'RECOMMEND_REJECT'
+              ? 'danger'
+              : screening.recommendation === 'STRONG_SHORTLIST'
+                ? 'success'
+                : screening.recommendation === 'MANUAL_REVIEW'
+                  ? 'warning'
+                  : 'accent'
+          }
+        />
         {screening.hr_decision ? (
           <Badge color="accent" variant="outline" size="md">
             HR override: {labelOf(HR_DECISION, screening.hr_decision)}
           </Badge>
         ) : null}
       </Group>
-
-      {screening.confidence != null ? (
-        <Text size="xs" c="dimmed">
-          Confidence {screening.confidence}
-        </Text>
-      ) : null}
 
       <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
         <BulletList label="Missing" items={missing} accentColor="warning" />

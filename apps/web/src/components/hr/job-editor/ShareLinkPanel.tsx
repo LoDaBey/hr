@@ -1,9 +1,10 @@
 'use client';
 
-import { Group, Paper, Text, Title } from '@mantine/core';
+import { Group, Text, TextInput } from '@mantine/core';
 import { useState } from 'react';
 import { MotionButton } from '@/components/MotionButton';
-import { density, palette } from '@/theme';
+import { SectionCard } from '@/components/ui/SectionCard';
+import { palette } from '@/theme';
 
 export function ShareLinkPanel({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
@@ -19,31 +20,41 @@ export function ShareLinkPanel({ url }: { url: string }) {
   }
 
   return (
-    <Paper
-      withBorder
-      p="md"
-      radius={density.defaultRadius}
-      style={{ borderColor: palette.accent }}
+    <SectionCard
+      title="Share with candidates"
+      description="Anyone with this link can open the public application page."
+      compact
     >
-      <Title order={4} mb="xs">
-        Share this link with candidates
-      </Title>
-      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-        <Text style={{ wordBreak: 'break-all', color: palette.ink }} ff="monospace" size="sm">
-          {url}
-        </Text>
+      <Group gap="sm" wrap="wrap" align="flex-end">
+        <TextInput
+          className="rounded outline-none"
+          aria-label="Public job application link"
+          readOnly
+          value={url}
+          style={{ flex: 1, minWidth: 200 }}
+          styles={{
+            input: {
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: 12,
+              color: palette.ink,
+              background: palette.paper,
+            },
+          }}
+        />
         <Group gap="xs">
           <MotionButton
             className="cursor-pointer rounded-lg"
             aria-label="Copy public job link"
             onClick={() => void handleCopy()}
+            size="sm"
           >
             {copied ? 'Copied' : 'Copy link'}
           </MotionButton>
           <MotionButton
             className="cursor-pointer rounded-lg"
             aria-label="Open public job page"
-            variant="subtle"
+            variant="default"
+            size="sm"
             component="a"
             href={url}
             target="_blank"
@@ -53,6 +64,9 @@ export function ShareLinkPanel({ url }: { url: string }) {
           </MotionButton>
         </Group>
       </Group>
-    </Paper>
+      <Text size="xs" c="dimmed" mt={4} hidden>
+        {url}
+      </Text>
+    </SectionCard>
   );
 }
