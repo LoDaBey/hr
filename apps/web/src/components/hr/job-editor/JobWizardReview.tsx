@@ -201,7 +201,12 @@ export function JobWizardReview({
           ))
         )}
         <Text size="sm" c="dimmed">
-          Shortlist threshold: {values.shortlist_threshold}
+          Shortlist at or above:{' '}
+          {values.shortlist_threshold === '' ||
+          values.shortlist_threshold === null ||
+          values.shortlist_threshold === undefined
+            ? 'Company default'
+            : values.shortlist_threshold}
         </Text>
       </ReviewBlock>
 

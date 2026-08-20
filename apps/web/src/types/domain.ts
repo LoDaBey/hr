@@ -171,7 +171,7 @@ export interface Job {
   hard_requirements: HardRequirement[];
   soft_requirements: unknown;
   screening_weights: unknown;
-  shortlist_threshold: number;
+  shortlist_threshold: number | null;
   cv_required: boolean;
   allow_reapply_days: number;
   assessment_invite_hours: number;

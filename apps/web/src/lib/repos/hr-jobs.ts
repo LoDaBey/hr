@@ -171,7 +171,7 @@ export type CreateJobInput = {
   hard_requirements?: unknown;
   soft_requirements?: unknown;
   screening_weights?: unknown;
-  shortlist_threshold?: number;
+  shortlist_threshold?: number | null;
   cv_required?: boolean;
   allow_reapply_days?: number;
   assessment_invite_hours?: number;
@@ -236,7 +236,7 @@ export async function createHrJob(
         JSON.stringify(hard),
         JSON.stringify(input.soft_requirements ?? []),
         input.screening_weights == null ? null : JSON.stringify(input.screening_weights),
-        input.shortlist_threshold ?? 70,
+        input.shortlist_threshold ?? null,
         input.cv_required ?? true,
         input.allow_reapply_days ?? 180,
         input.assessment_invite_hours ?? 48,

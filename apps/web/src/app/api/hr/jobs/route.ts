@@ -29,7 +29,7 @@ const createSchema = z.object({
   hard_requirements: z.unknown().optional(),
   soft_requirements: z.unknown().optional(),
   screening_weights: z.unknown().optional(),
-  shortlist_threshold: z.number().int().optional(),
+  shortlist_threshold: z.number().int().min(0).max(100).nullable().optional(),
   cv_required: z.boolean().optional(),
   allow_reapply_days: z.number().int().optional(),
   assessment_invite_hours: z.number().int().optional(),

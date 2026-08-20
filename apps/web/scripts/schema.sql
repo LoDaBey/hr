@@ -86,7 +86,8 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_jobs (
       -- [{"key":"aws","label":"AWS","weight":10}]
   screening_weights      jsonb NOT NULL DEFAULT
       '{"skills":40,"experience":30,"answers":20,"education":10}'::jsonb,
-  shortlist_threshold    int NOT NULL DEFAULT 70,
+  shortlist_threshold    int,                         -- null → use settings.auto_shortlist_min_score
+
   -- pipeline config
   cv_required            boolean NOT NULL DEFAULT true,
   allow_reapply_days     int NOT NULL DEFAULT 180,

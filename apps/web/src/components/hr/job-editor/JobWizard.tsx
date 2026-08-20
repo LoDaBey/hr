@@ -310,7 +310,7 @@ export function JobWizard({
       currency: normalizeJobCurrency(job?.currency),
       vacancies: job?.vacancies ?? 1,
       application_deadline: job?.application_deadline ?? null,
-      shortlist_threshold: job?.shortlist_threshold ?? 70,
+      shortlist_threshold: job?.shortlist_threshold ?? '',
       screening_weights: parseScreeningWeights(job?.screening_weights),
       cv_required: job?.cv_required ?? true,
       ask_age: job?.ask_age ?? false,
@@ -416,7 +416,12 @@ export function JobWizard({
       currency: values.currency || null,
       vacancies: Math.max(1, Number(values.vacancies) || 1),
       application_deadline: values.application_deadline,
-      shortlist_threshold: Number(values.shortlist_threshold) || 70,
+      shortlist_threshold:
+        values.shortlist_threshold === '' ||
+        values.shortlist_threshold === null ||
+        values.shortlist_threshold === undefined
+          ? null
+          : Number(values.shortlist_threshold),
       screening_weights: values.screening_weights,
       cv_required: values.cv_required,
       ask_age: values.ask_age,
