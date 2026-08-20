@@ -183,10 +183,6 @@ export function TechInterviewSitting({
   }, [persist]);
 
   useEffect(() => {
-    if (submitting) setConfirmOpen(true);
-  }, [submitting]);
-
-  useEffect(() => {
     if (paused) return;
     if (remainingMs != null && remainingMs <= 0) {
       if (current?.answer_mode === 'spoken') {
@@ -202,6 +198,7 @@ export function TechInterviewSitting({
   );
 
   const savedLabel = saving ? 'Saving…' : savedAt ? 'Saved' : null;
+  const confirmVisible = confirmOpen || Boolean(submitting);
 
   function goTo(nextIndex: number) {
     if (current?.answer_mode === 'spoken') {
@@ -346,7 +343,7 @@ export function TechInterviewSitting({
       <SelfViewThumbnail stream={stream} />
 
       <SubmitConfirmationOverlay
-        open={confirmOpen}
+        open={confirmVisible}
         submitting={submitting}
         unansweredCount={unanswered.length}
         onCancel={() => {
