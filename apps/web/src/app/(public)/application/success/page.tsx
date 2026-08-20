@@ -1,22 +1,30 @@
-import { Paper } from '@mantine/core';
-import { PublicPageShell } from '../../components/PublicPageShell';
+import { Box, Center } from '@mantine/core';
 import { palette } from '@/theme';
 import { SuccessMessage } from './components/SuccessMessage';
 
 export default function ApplicationSuccessPage() {
   return (
-    <PublicPageShell wide>
-      <Paper
-        p={{ base: 'md', sm: 'xl' }}
-        radius="lg"
-        shadow="md"
+    <Box
+      component="main"
+      style={{
+        minHeight: '100dvh',
+        background: palette.paper,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <Box
         style={{
-          background: '#FFFFFF',
-          border: `1px solid ${palette.ink}12`,
+          height: 4,
+          background: palette.accent,
+          width: '100%',
+          flexShrink: 0,
         }}
-      >
+        aria-hidden
+      />
+      <Center style={{ flex: 1, padding: 24 }}>
         <SuccessMessage />
-      </Paper>
-    </PublicPageShell>
+      </Center>
+    </Box>
   );
 }

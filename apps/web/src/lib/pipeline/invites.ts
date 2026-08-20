@@ -142,9 +142,13 @@ export async function issueInvite(
       return { ok: false, reason: 'wrong_stage' };
     }
 
-    const assessment = await oneTx<{ id: string; duration_minutes: number }>(
+    const assessment = await oneTx<{
+      id: string;
+      duration_minutes: number;
+      require_screen_share: boolean;
+    }>(
       client,
-      `SELECT id, duration_minutes
+      `SELECT id, duration_minutes, require_screen_share
        FROM HRSYSTEM_assessments
        WHERE job_id = $1 AND kind = $2 AND is_active = true
        LIMIT 1`,
@@ -309,6 +313,10 @@ export async function issueInvite(
       assessment_deadline: datetime(sitting.invite_deadline),
       duration_minutes: String(sitting.duration_minutes),
       [config.linkVar]: link,
+      desktop_requirement:
+        options.kind === 'TECH_TEST' && assessment.require_screen_share
+          ? ' This session must be taken on a desktop or laptop computer.'
+          : '',
     };
 
     const commInsert = await client.query<{ id: string }>(
