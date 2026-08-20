@@ -19,6 +19,7 @@ type ScreeningData = {
   reasoning_summary: string | null;
   hr_decision: string | null;
   hard_requirement_failures?: HardRequirementFailure[];
+  screened_without_cv?: boolean;
 };
 
 function BulletList({
@@ -86,6 +87,13 @@ export function ScreeningResultSection({
 
   return (
     <Stack gap="xl">
+      {screening.screened_without_cv ? (
+        <Alert color="warning" variant="light" title="Screened without CV content">
+          This score reflects application answers only — the CV could not be parsed. Do not treat
+          it as a full screening before you review the file yourself.
+        </Alert>
+      ) : null}
+
       <HardRequirementFailuresPanel failures={hardFailures} />
 
       <Group align="flex-end" gap="lg" wrap="wrap">

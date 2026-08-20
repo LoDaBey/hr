@@ -235,6 +235,8 @@ export interface Application {
   reject_reason: string | null;
   source: string | null;
   submission_id: string | null;
+  screening_attempts: number;
+  screening_claimed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -281,6 +283,8 @@ export interface CandidateAssessment {
   recording_status: RecordingStatus | null;
   violations_count: number;
   reminder_sent_at: string | null;
+  grading_attempts: number;
+  grading_claimed_at: string | null;
   created_at: string;
   updated_at: string;
 }

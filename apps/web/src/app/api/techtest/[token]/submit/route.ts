@@ -8,6 +8,7 @@ import { evaluateTechTest } from '@/lib/pipeline/grading';
 import type { TechTestSubmitResult } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
+// maxDuration: keep in sync with ROUTE_BUDGET_SECONDS in src/lib/automation.ts
 export const maxDuration = 60;
 
 const eventSchema = z.object({

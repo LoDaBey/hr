@@ -45,7 +45,9 @@ export function signUpload(kind: 'cv' | 'video'): CloudinarySignatureResult {
     public_id: publicId,
     resource_type: isVideo ? 'video' : 'raw',
     max_bytes: isVideo ? 104_857_600 : 10_485_760,
-    allowed_formats: isVideo ? ['webm', 'mp4'] : ['pdf', 'doc', 'docx'],
+    // pdf and docx are the two we can actually extract text from. Legacy binary .doc has no
+    // maintained pure-JS reader, so accepting it would only produce CV-less screenings.
+    allowed_formats: isVideo ? ['webm', 'mp4'] : ['pdf', 'docx'],
   };
 }
 

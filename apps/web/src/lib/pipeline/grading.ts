@@ -2,6 +2,7 @@ import 'server-only';
 import { recordingAudioUrl } from '@/lib/cloudinary';
 import { runAutomation } from '@/lib/automation';
 import { one, query, tx } from '@/lib/db';
+import { MAX_ATTEMPTS } from '@/lib/pipeline/constants';
 import {
   auditAutoInviteSkipped,
   issueInvite,
@@ -99,6 +100,62 @@ async function recordGradingFailure(
          $2, NULL, NULL, $3::jsonb
        )`,
       [sittingId, feedback, JSON.stringify({ grading_failed: true, reason })],
+    );
+
+    // Definite outcome only — killed routes / aborts never reach here, so they must not
+    // burn an attempt. Clear the lease so the next sweep can reclaim immediately.
+    const bumped = await client.query<{ grading_attempts: number }>(
+      `UPDATE HRSYSTEM_candidate_assessments
+       SET grading_attempts = grading_attempts + 1,
+           grading_claimed_at = NULL,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING grading_attempts`,
+      [sittingId],
+    );
+    const attempts = bumped.rows[0]?.grading_attempts ?? 0;
+    if (attempts < MAX_ATTEMPTS) return;
+
+    const reviewStage: Stage =
+      sitting.kind === 'TECH_TEST' ? 'RECORDED_TECH_REVIEW' : 'TECH_ASSESSMENT_REVIEW';
+    const submittedStage: Stage =
+      sitting.kind === 'TECH_TEST' ? 'RECORDED_TECH_SUBMITTED' : 'TECH_ASSESSMENT_SUBMITTED';
+
+    const moved = await client.query<{ stage: Stage }>(
+      `UPDATE HRSYSTEM_applications
+       SET stage = $2::HRSYSTEM_app_stage, updated_at = now()
+       WHERE id = $1
+         AND stage = $3::HRSYSTEM_app_stage
+         AND status = 'ACTIVE'
+       RETURNING stage`,
+      [sitting.application_id, reviewStage, submittedStage],
+    );
+    if ((moved.rowCount ?? 0) === 0) return;
+
+    await client.query(
+      `INSERT INTO HRSYSTEM_recruitment_events (
+         application_id, candidate_id, job_id, event_type,
+         from_stage, to_stage, actor_type, actor_label, payload
+       ) VALUES (
+         $1, $2, $3, 'GRADING_EXHAUSTED',
+         $4::HRSYSTEM_app_stage, $5::HRSYSTEM_app_stage,
+         'SYSTEM', $6, $7::jsonb
+       )`,
+      [
+        sitting.application_id,
+        sitting.candidate_id,
+        sitting.job_id,
+        submittedStage,
+        reviewStage,
+        `Grading exhausted after ${attempts} attempts — ${reason}`,
+        JSON.stringify({
+          candidate_assessment_id: sittingId,
+          kind: sitting.kind,
+          grading_attempts: attempts,
+          last_failure: reason,
+          source: node,
+        }),
+      ],
     );
   });
 }
@@ -424,7 +481,9 @@ export async function gradeAssessment(
 
     await client.query(
       `UPDATE HRSYSTEM_candidate_assessments
-       SET ai_score = $2, ai_max_score = $3, updated_at = now()
+       SET ai_score = $2, ai_max_score = $3,
+           grading_attempts = 0, grading_claimed_at = NULL,
+           updated_at = now()
        WHERE id = $1`,
       [sittingId, Math.round(totalPct), 100],
     );
@@ -937,6 +996,7 @@ export async function evaluateTechTest(
       `UPDATE HRSYSTEM_candidate_assessments
        SET ai_score = $2, ai_max_score = $3,
            transcript = COALESCE($4, transcript),
+           grading_attempts = 0, grading_claimed_at = NULL,
            updated_at = now()
        WHERE id = $1`,
       [sittingId, Math.round(totalPct), 100, transcript],

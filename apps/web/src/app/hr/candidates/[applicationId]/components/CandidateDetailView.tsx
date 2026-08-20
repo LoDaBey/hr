@@ -379,6 +379,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
                     submitted_at: assessment.submitted_at,
                     overall_feedback: assessment.review.overall_feedback,
                     has_overall_evaluation: assessment.review.has_overall_evaluation,
+                    grading_failed: assessment.review.grading_failed,
                     grading_error: assessment.review.grading_error,
                     questions: assessment.review.questions,
                   }}
@@ -400,6 +401,7 @@ export function CandidateDetailView({ applicationId }: { applicationId: string }
                     submitted_at: techtest.submitted_at,
                     overall_feedback: techtest.review.overall_feedback,
                     has_overall_evaluation: techtest.review.has_overall_evaluation,
+                    grading_failed: techtest.review.grading_failed,
                     grading_error: techtest.review.grading_error,
                     questions: techtest.review.questions,
                     recording_status: techtest.recording_status,

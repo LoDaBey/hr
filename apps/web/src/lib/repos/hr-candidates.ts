@@ -413,7 +413,9 @@ export async function getHrCandidateDetail(
         overall_feedback: overall?.feedback ?? null,
         has_overall_evaluation:
           Boolean(overall) && !gradingFailed && overall?.score != null,
-        grading_error: gradingError,
+        grading_failed: gradingFailed,
+        grading_error:
+          gradingError ?? (gradingFailed ? (overall?.feedback ?? 'Grading failed') : null),
         questions: questions.map((q) => {
           const ev = evalByQ.get(q.id);
           return {
@@ -474,6 +476,11 @@ export async function getHrCandidateDetail(
           reasoning_summary: screening.reasoning_summary,
           hr_decision: screening.hr_decision,
           hard_requirement_failures: parseHardRequirementFailures(screening.raw_response),
+          screened_without_cv:
+            screening.raw_response != null &&
+            typeof screening.raw_response === 'object' &&
+            (screening.raw_response as { screened_without_cv?: unknown }).screened_without_cv ===
+              true,
         }
       : null,
     assessment,
@@ -602,7 +609,9 @@ export async function getHrCandidateDetail(
           overall_feedback: overall?.feedback ?? null,
           has_overall_evaluation:
             Boolean(overall) && !gradingFailed && overall?.score != null,
-          grading_error: gradingError,
+          grading_failed: gradingFailed,
+          grading_error:
+            gradingError ?? (gradingFailed ? (overall?.feedback ?? 'Grading failed') : null),
           proctoring_flag: raw?.proctoring_flag ?? null,
           proctoring_summary: raw?.proctoring_summary ?? null,
           preflight_external_display: sitting.preflight_external_display,

@@ -7,6 +7,7 @@ import { appendEvent } from '@/lib/repos/events';
 import type { Stage } from '@/types/domain';
 
 export const dynamic = 'force-dynamic';
+// maxDuration: keep in sync with ROUTE_BUDGET_SECONDS in src/lib/automation.ts
 export const maxDuration = 60;
 
 /** Send a queued communication immediately — no waiting for cron. */

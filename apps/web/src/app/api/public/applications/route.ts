@@ -9,6 +9,7 @@ import { runCvParseAndScreening } from '@/lib/pipeline/screening';
 import { applicationSubmitSchema } from '@/lib/schemas/application';
 
 export const dynamic = 'force-dynamic';
+// maxDuration: keep in sync with ROUTE_BUDGET_SECONDS in src/lib/automation.ts
 export const maxDuration = 60;
 
 class SubmitError extends Error {

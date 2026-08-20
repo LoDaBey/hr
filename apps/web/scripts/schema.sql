@@ -206,6 +206,7 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_applications (
   source              text DEFAULT 'PORTAL',
   submission_id       text UNIQUE,                    -- client idempotency id
   screening_attempts  int NOT NULL DEFAULT 0,
+  screening_claimed_at timestamptz,                   -- lease; not an attempt counter
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now()
 );
@@ -295,6 +296,7 @@ CREATE TABLE IF NOT EXISTS HRSYSTEM_candidate_assessments (
   violations_count  int NOT NULL DEFAULT 0,
   reminder_sent_at  timestamptz,
   grading_attempts  int NOT NULL DEFAULT 0,
+  grading_claimed_at timestamptz,                     -- lease; not an attempt counter
   preflight_external_display boolean,
   spoken_question_timings jsonb NOT NULL DEFAULT '[]'::jsonb, -- [{question_id, shown_at, left_at}]
   transcript        text,                             -- from recording.grade
